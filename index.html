@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>サムネイルメーカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="gfonts" rel="stylesheet">
+<style>
+  :root{--bg:#111;--panel:#1b1b1b;--line:#2e2e2e;--fg:#eee;--mute:#999;--accent:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans JP",system-ui,sans-serif;font-size:14px}
+  header{padding:16px 24px 4px}
+  h1{margin:0;font-size:20px;font-weight:900;letter-spacing:.02em}
+  header p{margin:4px 0 0;color:var(--mute)}
+  main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr);gap:20px;padding:12px 24px 40px;align-items:start}
+  .preview{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0}
+  @media (max-width:900px){
+    main{grid-template-columns:1fr;padding:0 10px 40px;gap:8px}
+    header{padding:12px 12px 0}
+    header p,.preview .hint{display:none}
+  }
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#000;touch-action:none;cursor:grab;box-shadow:0 0 0 1px var(--line)}
+  canvas.dragging{cursor:grabbing}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;background:#2a2a2a;color:var(--fg)}
+  button.primary{background:var(--accent);color:#000}
+  button:hover{filter:brightness(1.15)}
+  button:disabled{opacity:.35;cursor:default}
+  #msg{color:var(--mute);font-size:13px}
+  .hint{color:var(--mute);font-size:12px;margin:6px 0 0;line-height:1.6}
+  .hint code{background:#2a2a2a;padding:1px 5px;border-radius:4px;color:#ddd}
+  fieldset{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:14px 16px 16px;margin:0 0 14px;min-width:0}
+  legend{font-weight:900;padding:0 6px}
+  label{display:block;margin:10px 0 4px;color:#ccc;font-size:13px}
+  input[type=text],select{width:100%;font:inherit;font-size:16px;font-weight:700;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:#0e0e0e;color:var(--fg)}
+  select{font-size:14px;font-weight:500}
+  input[type=text]:focus,select:focus{outline:2px solid #fff;outline-offset:-1px}
+  input[type=file]{display:none}
+  input[type=color]{width:38px;height:30px;border:1px solid var(--line);border-radius:6px;background:#0e0e0e;padding:2px;cursor:pointer}
+  .row{display:grid;grid-template-columns:92px 1fr 46px;align-items:center;gap:8px;margin-top:6px}
+  .row span{color:#bbb;font-size:12px}
+  .row output{color:var(--mute);font-size:12px;text-align:right}
+  input[type=range]{width:100%;accent-color:#fff}
+  .check{display:flex;gap:6px;align-items:center;margin-top:8px;color:#ccc;font-size:13px}
+  .layer{border-top:1px solid var(--line);margin-top:12px;padding-top:6px}
+  .layer:first-child{border-top:0;margin-top:0;padding-top:0}
+  .layer h3{font-size:13px;margin:8px 0 2px;display:flex;align-items:center;gap:8px}
+  .layer h3 label{margin:0;display:flex;gap:6px;align-items:center;font-weight:700;color:#eee}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .presets button{padding:6px 10px;font-size:12px;font-weight:700}
+  .small{font-size:12px;padding:6px 10px}
+  .tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+  .tabs button{padding:7px 12px;font-size:13px;background:#242424;color:#bbb}
+  .tabs button.on{background:#fff;color:#000}
+  .maintabs{position:sticky;top:0;z-index:4;background:var(--bg);padding:6px 0;margin:0 0 8px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+  .maintabs button{padding:10px 4px;font-size:13px;background:#202020;color:#bbb}
+  .maintabs button.on{background:#fff;color:#000}
+  @media (max-width:900px){.maintabs{position:static}}
+  .colors{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:6px}
+  .colors > div{display:flex;align-items:center;gap:6px;font-size:12px;color:#bbb}
+  .two{display:grid;grid-template-columns:1fr 110px;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stylePresets{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+  .stylePresets button{padding:8px;font-size:12px;text-align:center}
+  .sub,.page{display:none}
+  .sub.on,.page.on{display:block}
+  /* layer list */
+  .layers{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+  .layers li{display:flex;align-items:center;gap:8px;padding:6px;border-radius:8px;background:#232323;cursor:pointer;user-select:none}
+  .layers li.sel{box-shadow:inset 0 0 0 2px #fff}
+  .layers li.hidden .nm,.layers li.hidden img{opacity:.35}
+  .layers img,.layers .ti{width:52px;height:32px;object-fit:contain;border-radius:4px;flex:none;
+    background:repeating-conic-gradient(#3a3a3a 0 25%,#2a2a2a 0 50%) 0 0/10px 10px}
+  .layers .ti{display:grid;place-items:center;font-weight:900;font-size:15px;background:#000;color:#fff;box-shadow:inset 0 0 0 1px #444}
+  .layers .nm{flex:1;min-width:0;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .layers .nm small{display:block;color:var(--mute);font-size:11px}
+  .layers button{padding:7px 9px;font-size:12px;background:#333;flex:none}
+  .addbtn{width:100%;padding:12px;background:#fff;color:#000}
+  .lpresets{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  .lpresets button{font-size:12px;padding:8px 6px}
+  .empty{color:var(--mute);font-size:13px;padding:10px 0}
+  /* free-layout lines */
+  .line{background:#232323;border-radius:10px;padding:8px;margin-top:8px}
+  .line .top{display:flex;gap:6px}
+  .line .top input{flex:1;min-width:0}
+  .line .top button{padding:6px 9px;font-size:12px;background:#333}
+  .line .opts{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin-top:6px}
+  .line .opts select{font-size:13px;padding:6px 8px}
+  .line .row{grid-template-columns:52px 1fr 40px;margin-top:4px}
+  /* save tab */
+  .status{font-size:13px;color:#cfcfcf;display:flex;align-items:center;gap:8px}
+  .status i{width:8px;height:8px;border-radius:50%;background:#3ccf6e;display:inline-block;flex:none}
+  .status.off i{background:#e5484d}
+  .plist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .pitem{display:grid;grid-template-columns:96px 1fr;gap:10px;background:#232323;border-radius:10px;padding:8px;align-items:center}
+  .pitem img{width:96px;height:54px;object-fit:cover;border-radius:6px;background:#000;display:block}
+  .pitem .pn{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pitem .pm{font-size:11px;color:var(--mute);margin-top:2px}
+  .pitem .pb{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .pitem .pb button{padding:6px 10px;font-size:12px}
+  .pitem .pb button.use{background:#fff;color:#000}
+  button.danger{background:#3a1a1a;color:#ff8f8f}
+  /* export modal */
+  #out{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;align-items:center;justify-content:center;padding:16px}
+  #out.on{display:flex}
+  #out .box{max-width:900px;width:100%;background:var(--panel);border-radius:12px;padding:14px}
+  #out img{width:100%;border-radius:8px;display:block;margin:8px 0 10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>サムネイルメーカー</h1>
+  <p>画像を重ねて、大きなキーワードを乗せる。YouTube用 1280×720 で書き出します。</p>
+</header>
+<main>
+  <section class="preview">
+    <canvas id="cv" width="1280" height="720" aria-label="サムネイルのプレビュー"></canvas>
+    <div class="actions">
+      <button class="primary" id="exportBtn">PNGを書き出す</button>
+      <button id="copyBtn">コピー</button>
+      <span id="msg"></span>
+    </div>
+    <p class="hint">プレビュー上でドラッグすると選んでいる画像が動きます。2本指でつまむと拡大・回転できます。</p>
+  </section>
+
+  <section class="controls">
+    <div class="maintabs" id="mainTabs">
+      <button data-page="text" class="on">テキスト</button>
+      <button data-page="style">文字スタイル</button>
+      <button data-page="img">画像</button>
+      <button data-page="fin">仕上げ</button>
+      <button data-page="save">保存</button>
+    </div>
+
+    <!-- ===== テキスト ===== -->
+    <div class="page on" id="page-text">
+      <fieldset>
+        <legend>文字の組み方</legend>
+        <select id="textMode" data-save>
+          <option value="free">自由レイアウト（行を自由に追加）</option>
+          <option value="tpl">白箱テンプレート（上・キーワード・後ろ・下）</option>
+        </select>
+      </fieldset>
+
+      <div id="freeSection">
+      <fieldset>
+        <legend>行</legend>
+        <div id="lineList"></div>
+        <button class="small" id="addLine" style="margin-top:10px;width:100%">＋ 行を追加</button>
+        <p class="hint">
+          <code>*変わっ*ていく</code> → 強調色　<code>{ }</code> → 小さく　<code>[ ]</code> → 大きく<br>
+          「キーワード」にした行は、文字スタイルの「キーワード」の見た目（色・質感・箱）になります。
+        </p>
+        <div class="presets" id="freePresets"></div>
+      </fieldset>
+      <fieldset>
+        <legend>文字のかたまり</legend>
+        <label for="fAlign">揃え</label>
+        <select id="fAlign" data-save>
+          <option value="center">中央揃え</option>
+          <option value="left">左揃え</option>
+          <option value="right">右揃え</option>
+        </select>
+        <div class="row"><span>行間</span><input type="range" id="fLh" data-save min="0.7" max="1.5" step="0.01" value="1.02"><output></output></div>
+        <div class="row"><span>横の位置</span><input type="range" id="fx" data-save min="-500" max="500" step="1" value="0"><output></output></div>
+        <div class="row"><span>縦の位置</span><input type="range" id="fy" data-save min="-320" max="320" step="1" value="0"><output></output></div>
+        <button class="small" id="fReset" style="margin-top:8px">位置を戻す</button>
+        <p class="hint">プレビューで文字をドラッグしても動かせます（画像レイヤー一覧で「文字」を選ぶと確実です）。</p>
+      </fieldset>
+      </div>
+
+      <div id="tplSection">
+      <fieldset>
+        <legend>テキスト</legend>
+        <label for="t1">上の行</label>
+        <input type="text" id="t1" data-save>
+        <label for="t2">キーワード（特大）</label>
+        <input type="text" id="t2" data-save>
+        <label for="t3">キーワードの後ろ（に・の・が など）</label>
+        <input type="text" id="t3" data-save>
+        <label for="t4">下の行</label>
+        <input type="text" id="t4" data-save>
+        <p class="hint">
+          <code>*悲惨*</code> → 強調色にする
+          <code>{ }</code> → 小さく　<code>[ ]</code> → 大きく<br>
+          ひらがな・句読点は自動で少し小さくなります。
+        </p>
+        <div class="presets" id="presets"></div>
+      </fieldset>
+      <fieldset>
+        <legend>文字サイズ</legend>
+        <div class="row"><span>上の行</span><input type="range" id="s1" data-save min="70" max="150" step="1" value="116"><output></output></div>
+        <div class="row"><span>キーワード</span><input type="range" id="s2" data-save min="160" max="360" step="1" value="300"><output></output></div>
+        <div class="row"><span>後ろの文字</span><input type="range" id="s3" data-save min="50" max="140" step="1" value="92"><output></output></div>
+        <div class="row"><span>下の行</span><input type="range" id="s4" data-save min="70" max="150" step="1" value="112"><output></output></div>
+      </fieldset>
+      </div>
+      <fieldset>
+        <legend>共通</legend>
+        <div class="row"><span>ひらがな比率</span><input type="range" id="small" data-save min="0.6" max="1" step="0.01" value="0.78"><output></output></div>
+        <p class="hint">ひらがな・句読点を、漢字に対してどれくらいの大きさにするか。</p>
+      </fieldset>
+      <fieldset>
+        <legend>レイアウト</legend>
+        <label for="side">文字の位置</label>
+        <select id="side" data-save>
+          <option value="right">右（画像エリアは左）</option>
+          <option value="left">左（画像エリアは右）</option>
+        </select>
+        <div class="row"><span>画像エリアの幅</span><input type="range" id="leftW" data-save min="0.2" max="0.55" step="0.005" value="0.4"><output></output></div>
+      </fieldset>
+    </div>
+
+    <!-- ===== 文字スタイル ===== -->
+    <div class="page" id="page-style">
+      <fieldset>
+        <legend>デザインのプリセット</legend>
+        <div class="stylePresets" id="stylePresets"></div>
+        <p class="hint">プリセットを選んでから、下で細かく調整できます。</p>
+      </fieldset>
+      <fieldset>
+        <legend>文字のスタイル</legend>
+        <div class="tabs" id="styleTabs">
+          <button data-tab="n" class="on">白文字（上・後ろ・下）</button>
+          <button data-tab="k">キーワード</button>
+          <button data-tab="b">箱</button>
+        </div>
+        <div class="sub on" id="tab-n"></div>
+        <div class="sub" id="tab-k"></div>
+        <div class="sub" id="tab-b">
+          <div class="layer">
+            <h3><label><input type="checkbox" id="box_on" data-save checked> キーワードを箱で囲む</label></h3>
+            <div class="colors"><div>箱の色 <input type="color" id="box_c" data-save value="#ffffff"></div></div>
+            <div class="row"><span>角の丸み</span><input type="range" id="box_r" data-save min="0" max="60" step="1" value="0"><output></output></div>
+            <div class="row"><span>余白</span><input type="range" id="box_pad" data-save min="0" max="0.2" step="0.005" value="0.07"><output></output></div>
+            <label class="check"><input type="checkbox" id="box_sh" data-save> 箱に影をつける</label>
+            <div class="colors"><div>影の色 <input type="color" id="box_shc" data-save value="#000000"></div></div>
+            <div class="row"><span>ぼかし</span><input type="range" id="box_shb" data-save min="0" max="60" step="1" value="24"><output></output></div>
+            <div class="row"><span>ずらし</span><input type="range" id="box_shd" data-save min="0" max="40" step="1" value="10"><output></output></div>
+          </div>
+        </div>
+        <div class="layer" style="margin-top:14px">
+          <h3>手持ちのフォントを使う</h3>
+          <button class="small" id="fontBtn">フォントファイルを選ぶ</button>
+          <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2,font/*">
+          <p class="hint">.ttf / .otf / .woff を選ぶと、フォント一覧の一番下に追加されます（このページを開いている間だけ有効）。</p>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- ===== 画像 ===== -->
+    <div class="page" id="page-img">
+      <fieldset>
+        <legend>レイヤー</legend>
+        <button class="addbtn" id="addBtn">＋ 画像を追加（複数可）</button>
+        <input type="file" id="imgFile" accept="image/*" multiple>
+        <ul class="layers" id="layerList"></ul>
+        <p class="hint">上にあるものほど手前に表示されます。▲▼で順番を変えると、画像を「文字」の前にも後ろにも置けます。</p>
+      </fieldset>
+
+      <div id="layerEditor">
+        <fieldset>
+          <legend id="edTitle">選択中の画像</legend>
+          <div class="lpresets" id="layerPresets"></div>
+          <div class="layer" style="margin-top:12px">
+            <h3>配置</h3>
+            <select data-lp="fit">
+              <option value="cover">画面いっぱい（背景向け）</option>
+              <option value="panel">画像エリアいっぱい</option>
+              <option value="free">自由に配置（人物・物向け）</option>
+            </select>
+            <div class="row"><span>大きさ</span><input type="range" data-lp="scale" min="0.1" max="3" step="0.01"><output></output></div>
+            <div class="row"><span>回転</span><input type="range" data-lp="rot" min="-45" max="45" step="0.5"><output></output></div>
+            <label class="check"><input type="checkbox" data-lp="flip"> 左右反転</label>
+            <button class="small" id="posReset" style="margin-top:8px">位置をリセット</button>
+          </div>
+          <div class="layer">
+            <h3>色調</h3>
+            <div class="row"><span>明るさ</span><input type="range" data-lp="bri" min="-0.6" max="0.6" step="0.01"><output></output></div>
+            <div class="row"><span>コントラスト</span><input type="range" data-lp="con" min="0.5" max="2" step="0.01"><output></output></div>
+            <div class="row"><span>彩度（0=白黒）</span><input type="range" data-lp="sat" min="0" max="2" step="0.01"><output></output></div>
+            <div class="row"><span>暗くする</span><input type="range" data-lp="dark" min="0" max="0.95" step="0.01"><output></output></div>
+            <div class="colors"><div>色をかぶせる <input type="color" data-lp="tint"></div></div>
+            <div class="row"><span>かぶせる強さ</span><input type="range" data-lp="tintAmt" min="0" max="1" step="0.01"><output></output></div>
+          </div>
+          <div class="layer">
+            <h3>ぼかし・なじませ</h3>
+            <div class="row"><span>全体ぼかし</span><input type="range" data-lp="blur" min="0" max="30" step="1"><output></output></div>
+            <div class="row"><span>輪郭ぼかし</span><input type="range" data-lp="feather" min="0" max="80" step="1"><output></output></div>
+            <div class="row"><span>不透明度</span><input type="range" data-lp="opacity" min="0" max="1" step="0.01"><output></output></div>
+            <label>重ね方</label>
+            <select data-lp="blend">
+              <option value="source-over">通常</option>
+              <option value="screen">スクリーン（黒が透けて明るい所だけ乗る）</option>
+              <option value="multiply">乗算（白が透けて暗い所だけ乗る）</option>
+              <option value="overlay">オーバーレイ（質感を重ねる）</option>
+              <option value="soft-light">ソフトライト（やさしく重ねる）</option>
+              <option value="lighten">比較（明）</option>
+              <option value="darken">比較（暗）</option>
+            </select>
+            <p class="hint">輪郭ぼかしは、人物を背景になじませたり、写真の四辺をふんわり消したりするのに使います。</p>
+          </div>
+          <div class="layer">
+            <h3><label><input type="checkbox" data-lp="sh"> 影をつける</label></h3>
+            <div class="colors"><div>影の色 <input type="color" data-lp="shColor"></div></div>
+            <div class="row"><span>濃さ</span><input type="range" data-lp="shOp" min="0" max="1" step="0.01"><output></output></div>
+            <div class="row"><span>ぼかし</span><input type="range" data-lp="shBlur" min="0" max="80" step="1"><output></output></div>
+            <div class="row"><span>ずらし</span><input type="range" data-lp="shDist" min="0" max="50" step="1"><output></output></div>
+            <p class="hint">影の色を明るくして、ずらしを0にすると光って見えます（後光・縁の光）。</p>
+          </div>
+        </fieldset>
+      </div>
+      <fieldset id="textLayerNote" style="display:none">
+        <legend>文字レイヤー</legend>
+        <p class="hint" style="margin:0">文字のかたまりです。▲▼で画像との前後を入れ替えられます。文字の内容とデザインは「テキスト」「文字スタイル」タブで変更できます。</p>
+      </fieldset>
+    </div>
+
+    <!-- ===== 仕上げ ===== -->
+    <div class="page" id="page-fin">
+      <fieldset>
+        <legend>背景色</legend>
+        <p class="hint" style="margin-top:0">画像がない部分に見える色です。</p>
+        <div class="colors">
+          <div>背景色 <input type="color" id="bg_c" data-save value="#000000"></div>
+          <div><label class="check" style="margin:0"><input type="checkbox" id="bg_grad" data-save> グラデーション</label></div>
+          <div>2色目 <input type="color" id="bg_c2" data-save value="#3a0000"></div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>画面全体の仕上げ</legend>
+        <div class="row"><span>周辺を暗く</span><input type="range" id="vig" data-save min="0" max="1" step="0.01" value="0"><output></output></div>
+        <div class="row"><span>暗くする範囲</span><input type="range" id="vigSize" data-save min="0.2" max="0.9" step="0.01" value="0.55"><output></output></div>
+        <div class="row"><span>粒子感</span><input type="range" id="grain" data-save min="0" max="0.5" step="0.01" value="0"><output></output></div>
+        <p class="hint">「周辺を暗く」は文字レイヤーの下にかかるので、文字は暗くなりません。</p>
+      </fieldset>
+    </div>
+
+    <!-- ===== 保存 ===== -->
+    <div class="page" id="page-save">
+      <fieldset>
+        <legend>作業の自動保存</legend>
+        <div class="status" id="saveStatus"><i></i><span>確認中…</span></div>
+        <p class="hint">画像・レイヤー・文字・デザインは、この端末のブラウザ内に自動で保存され、次に開いたときに続きから始まります。外部には送信されません。</p>
+        <button class="danger" id="clearWork" style="margin-top:10px">新しく作り直す（画像をすべて外す）</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>マイプリセット</legend>
+        <label for="pName">名前</label>
+        <input type="text" id="pName" placeholder="例：ダーク赤かすれ" maxlength="40">
+        <label class="check"><input type="checkbox" id="pText"> 文字の内容も含める</label>
+        <label class="check"><input type="checkbox" id="pImg"> 画像も含める（背景素材などを毎回使うとき）</label>
+        <button class="primary" id="pSave" style="margin-top:10px;width:100%">今のデザインをプリセットに保存</button>
+        <p class="hint">デザイン（フォント・色・質感・箱・仕上げ・レイアウト）は必ず保存されます。「画像も含める」にすると、レイヤーの並びと効果も一緒に保存されます。</p>
+        <div class="plist" id="pList"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>バックアップ</legend>
+        <p class="hint" style="margin-top:0">iPhoneは、空き容量が少ないときや長く使わなかったときに、ブラウザ内の保存データを消すことがあります。大事な作業やプリセットはファイルにも残しておくと安心です。</p>
+        <div class="grid2" style="margin-top:10px">
+          <button id="bkOut">バックアップを書き出す</button>
+          <button id="bkIn">バックアップを読み込む</button>
+        </div>
+        <input type="file" id="bkFile" accept=".json,application/json">
+        <p class="hint">書き出したファイル（.json）には、今の作業とすべてのマイプリセットが入ります。</p>
+      </fieldset>
+    </div>
+  </section>
+</main>
+
+<div id="out">
+  <div class="box">
+    <div class="hint" style="margin:0">画像を長押し（パソコンは右クリック）でも保存できます</div>
+    <img id="outImg" alt="書き出したサムネイル">
+    <button id="outClose">閉じる</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const W = 1280, H = 720;
+  const MAX_SRC = 1800;  // imported images are shrunk to this long edge to save memory
+  const FALLBACK = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans CJK JP", sans-serif';
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const HAS_FILTER = typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
+
+  // =====================================================================
+  // fonts
+  // =====================================================================
+  const FONTS = [
+    { id:'noto',      name:'Noto Sans JP（極太ゴシック）', g:'Noto Sans JP', w:[700,800,900] },
+    { id:'mplus1p',   name:'M PLUS 1p（すっきりゴシック）', g:'M PLUS 1p', w:[700,800,900] },
+    { id:'zenkaku',   name:'Zen角ゴシック New', g:'Zen Kaku Gothic New', w:[700,900] },
+    { id:'murecho',   name:'Murecho（モダンゴシック）', g:'Murecho', w:[700,800,900] },
+    { id:'bizud',     name:'BIZ UDPゴシック', g:'BIZ UDPGothic', w:[700] },
+    { id:'dela',      name:'Dela Gothic One（超極太）', g:'Dela Gothic One', w:[400] },
+    { id:'rocknroll', name:'RocknRoll One（力強い丸み）', g:'RocknRoll One', w:[400] },
+    { id:'reggae',    name:'Reggae One（インパクト）', g:'Reggae One', w:[400] },
+    { id:'mochiy',    name:'Mochiy Pop One（ポップ）', g:'Mochiy Pop One', w:[400] },
+    { id:'potta',     name:'Potta One（筆ポップ）', g:'Potta One', w:[400] },
+    { id:'zenmaru',   name:'Zenマルゴシック', g:'Zen Maru Gothic', w:[700,900] },
+    { id:'rounded',   name:'M PLUS Rounded 1c（丸ゴシック）', g:'M PLUS Rounded 1c', w:[700,800,900] },
+    { id:'tokumin',   name:'解星特ミン（見出し明朝）', g:'Kaisei Tokumin', w:[700,800] },
+    { id:'notoserif', name:'Noto Serif JP（極太明朝）', g:'Noto Serif JP', w:[700,900] },
+    { id:'opti',      name:'解星オプティ（すっきり明朝）', g:'Kaisei Opti', w:[700] },
+    { id:'shippori',  name:'しっぽり明朝 B1', g:'Shippori Mincho B1', w:[700,800] },
+    { id:'zenold',    name:'Zenオールド明朝', g:'Zen Old Mincho', w:[700,900] },
+    { id:'decol',     name:'解星デコール（上品な明朝）', g:'Kaisei Decol', w:[700] },
+    { id:'antique',   name:'Zenアンティーク ソフト（レトロ）', g:'Zen Antique Soft', w:[400] },
+    { id:'yuji',      name:'Yuji Syuku（筆文字）', g:'Yuji Syuku', w:[400] },
+    { id:'trainone',  name:'Train One（ゴシック装飾）', g:'Train One', w:[400] },
+    { id:'rampart',   name:'Rampart One（立体）', g:'Rampart One', w:[400] },
+    { id:'dot',       name:'DotGothic16（ドット）', g:'DotGothic16', w:[400] },
+    { id:'hachimaru', name:'Hachi Maru Pop（手書き風）', g:'Hachi Maru Pop', w:[400] },
+    { id:'yusei',     name:'Yusei Magic（マーカー）', g:'Yusei Magic', w:[400] },
+    { id:'hiragino',  name:'ヒラギノ角ゴ（Mac・iPhoneのみ）', css:'"Hiragino Sans", "Hiragino Kaku Gothic StdN"', w:[600,800,900] },
+    { id:'yugoth',    name:'游ゴシック（Windows・Mac）', css:'"Yu Gothic", "YuGothic"', w:[700] },
+    { id:'meiryo',    name:'メイリオ（Windows）', css:'"Meiryo"', w:[700] },
+  ];
+  FONTS.forEach(f => { if (f.g) f.css = `"${f.g}"`; });
+  (function linkGoogleFonts() {
+    const fams = FONTS.filter(f => f.g).map(f => {
+      const fam = f.g.replace(/ /g, '+');
+      return (f.w.length === 1 && f.w[0] === 400) ? `family=${fam}` : `family=${fam}:wght@${f.w.join(';')}`;
+    });
+    $('gfonts').href = 'https://fonts.googleapis.com/css2?' + fams.join('&') + '&display=swap';
+  })();
+  const fontById = id => FONTS.find(f => f.id === id) || FONTS[0];
+
+  // =====================================================================
+  // text style panels
+  // =====================================================================
+  function stylePanel(p) {
+    return `
+      <div class="layer">
+        <h3>フォント</h3>
+        <div class="two">
+          <select id="${p}_font" data-save></select>
+          <select id="${p}_weight" data-save></select>
+        </div>
+        <div class="row"><span>字間</span><input type="range" id="${p}_track" data-save min="-0.12" max="0.2" step="0.005" value="${p==='k'?-0.03:-0.02}"><output></output></div>
+      </div>
+      <div class="layer">
+        <h3>色</h3>
+        <div class="colors">
+          <div>文字色 <input type="color" id="${p}_fill" data-save value="${p==='k'?'#000000':'#ffffff'}"></div>
+          <div>強調色 <input type="color" id="${p}_accent" data-save value="#ffd400"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="${p}_grad" data-save> 上から下へグラデーション</label>
+        <div class="colors"><div>下の色 <input type="color" id="${p}_fill2" data-save value="#ffb300"></div></div>
+      </div>
+      <div class="layer">
+        <h3>質感</h3>
+        <select id="${p}_tex" data-save>
+          <option value="none">なし（ベタ塗り）</option>
+          <option value="grunge">かすれ（ざらついた印刷風）</option>
+          <option value="gold">金（金属の光沢）</option>
+          <option value="silver">銀（金属の光沢）</option>
+        </select>
+        <label class="check"><input type="checkbox" id="${p}_texAcc" data-save> 強調色（*で囲んだ文字）だけにかける</label>
+        <div class="row"><span>かすれの強さ</span><input type="range" id="${p}_texAmt" data-save min="0.1" max="1" step="0.01" value="0.55"><output></output></div>
+      </div>
+      <div class="layer">
+        <h3>縁取り</h3>
+        <div class="colors"><div>内側 <input type="color" id="${p}_s1c" data-save value="#000000"></div></div>
+        <div class="row"><span>内側の太さ</span><input type="range" id="${p}_s1w" data-save min="0" max="24" step="1" value="0"><output></output></div>
+        <div class="colors"><div>外側 <input type="color" id="${p}_s2c" data-save value="#ffffff"></div></div>
+        <div class="row"><span>外側の太さ</span><input type="range" id="${p}_s2w" data-save min="0" max="24" step="1" value="0"><output></output></div>
+      </div>
+      <div class="layer">
+        <h3><label><input type="checkbox" id="${p}_sh" data-save> 影をつける</label></h3>
+        <div class="colors"><div>影の色 <input type="color" id="${p}_shc" data-save value="#000000"></div></div>
+        <div class="row"><span>濃さ</span><input type="range" id="${p}_sho" data-save min="0" max="1" step="0.01" value="0.85"><output></output></div>
+        <div class="row"><span>ぼかし</span><input type="range" id="${p}_shb" data-save min="0" max="60" step="1" value="8"><output></output></div>
+        <div class="row"><span>横ずらし</span><input type="range" id="${p}_shx" data-save min="-40" max="40" step="1" value="6"><output></output></div>
+        <div class="row"><span>縦ずらし</span><input type="range" id="${p}_shy" data-save min="-40" max="40" step="1" value="6"><output></output></div>
+        <p class="hint">ずらしを0にしてぼかしを大きくすると、光る（グロー）表現になります。</p>
+      </div>`;
+  }
+  $('tab-n').innerHTML = stylePanel('n');
+  $('tab-k').innerHTML = stylePanel('k');
+
+  function fillFontSelect(p) {
+    const sel = $(p + '_font'), cur = sel.value;
+    sel.innerHTML = FONTS.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+    if (cur && FONTS.some(f => f.id === cur)) sel.value = cur;
+  }
+  function fillWeightSelect(p, keep) {
+    const f = fontById($(p + '_font').value), sel = $(p + '_weight'), cur = keep || sel.value;
+    const label = w => ({400:'標準',500:'中',600:'やや太',700:'太',800:'極太',900:'超極太'}[w] || w);
+    sel.innerHTML = f.w.map(w => `<option value="${w}">${label(w)}</option>`).join('');
+    sel.value = f.w.includes(+cur) ? cur : String(f.w[f.w.length - 1]);
+  }
+  ['n','k'].forEach(p => { fillFontSelect(p); fillWeightSelect(p); });
+
+  function tabs(containerId, attr, prefix, cls) {
+    document.querySelectorAll(`#${containerId} button`).forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll(`#${containerId} button`).forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.' + cls).forEach(s => s.classList.toggle('on', s.id === prefix + b.dataset[attr]));
+    }));
+  }
+  tabs('styleTabs', 'tab', 'tab-', 'sub');
+  tabs('mainTabs', 'page', 'page-', 'page');
+
+  // =====================================================================
+  // presets
+  // =====================================================================
+  const PRESETS = [
+    ['迷ったら、', '行動', 'が', '正解である。'],
+    ['幸せになりたければ、', '比較', 'を', 'やめなさい。'],
+    ['毎朝５分の', '読書', 'で', '人生が変わる'],
+    ['人生は*一度*きり、', '挑戦', 'を', '恐れるな。'],
+    ['本当に強い人は', '鈍感', '', 'である。'],
+  ];
+  const BASE_STYLE = {
+    n_font:'noto', n_weight:'900', n_track:-0.02, n_fill:'#ffffff', n_accent:'#ffd400', n_grad:false, n_fill2:'#ffb300',
+    n_s1c:'#000000', n_s1w:0, n_s2c:'#ffffff', n_s2w:0, n_sh:false, n_shc:'#000000', n_sho:0.85, n_shb:8, n_shx:6, n_shy:6,
+    n_tex:'none', n_texAcc:false, n_texAmt:0.55, k_tex:'none', k_texAcc:false, k_texAmt:0.55,
+    k_font:'noto', k_weight:'900', k_track:-0.03, k_fill:'#000000', k_accent:'#d61f1f', k_grad:false, k_fill2:'#444444',
+    k_s1c:'#000000', k_s1w:0, k_s2c:'#ffffff', k_s2w:0, k_sh:false, k_shc:'#000000', k_sho:0.85, k_shb:8, k_shx:6, k_shy:6,
+    box_on:true, box_c:'#ffffff', box_r:0, box_pad:0.07, box_sh:false, box_shc:'#000000', box_shb:24, box_shd:10,
+    bg_c:'#000000', bg_grad:false, bg_c2:'#3a0000',
+  };
+  const STYLE_PRESETS = [
+    { name:'定番（白箱×黒字）', v:{} },
+    { name:'黄色アクセント', v:{ n_accent:'#ffd400', box_c:'#ffd400', k_fill:'#000000' } },
+    { name:'赤い箱', v:{ n_accent:'#ff3b30', box_c:'#d61f1f', k_fill:'#ffffff', k_sh:true, k_shc:'#000000', k_sho:0.5, k_shb:0, k_shx:6, k_shy:6 } },
+    { name:'影つき白文字', v:{ n_sh:true, n_shb:10, n_shx:6, n_shy:6, box_sh:true, box_shb:30, box_shd:12, bg_c:'#141414' } },
+    { name:'箱なし・縁取り', v:{ box_on:false, k_fill:'#ffe14d', k_s1c:'#000000', k_s1w:10, k_s2c:'#ffffff', k_s2w:8, k_sh:true, k_shb:16, k_shx:8, k_shy:10, k_sho:0.9, n_accent:'#ffe14d' } },
+    { name:'金のグラデーション', v:{ box_on:false, k_grad:true, k_fill:'#fff3b0', k_fill2:'#c8901a', k_s1c:'#2a1a00', k_s1w:8, k_sh:true, k_shb:20, k_shx:0, k_shy:8, n_accent:'#f3c74b', bg_grad:true, bg_c:'#000000', bg_c2:'#2b1d00' } },
+    { name:'明朝・格調', v:{ n_font:'notoserif', n_weight:'900', k_font:'notoserif', k_weight:'900', k_track:-0.01, n_accent:'#d9b56a', box_c:'#f3efe6' } },
+    { name:'明朝・赤（ダーク）', v:{ n_font:'notoserif', n_weight:'900', k_font:'notoserif', k_weight:'900', box_on:false, k_fill:'#c8161d', k_sh:true, k_shc:'#000000', k_sho:0.9, k_shb:18, k_shx:0, k_shy:6, n_sh:true, n_shb:16, n_shx:0, n_shy:6, n_accent:'#d0181f', k_track:-0.02 } },
+    { name:'赤かすれ（ダーク）', v:{ n_font:'tokumin', n_weight:'800', k_font:'tokumin', k_weight:'800', box_on:false,
+        n_fill:'#f2f2f2', n_accent:'#c8161d', n_tex:'grunge', n_texAcc:true, n_texAmt:0.6, n_sh:true, n_shc:'#000000', n_sho:0.9, n_shb:18, n_shx:0, n_shy:6,
+        k_fill:'#c8161d', k_accent:'#c8161d', k_tex:'grunge', k_texAmt:0.6, k_sh:true, k_shc:'#000000', k_sho:0.9, k_shb:22, k_shx:0, k_shy:8, k_track:-0.02 } },
+    { name:'金の見出し（ダーク）', v:{ n_font:'tokumin', n_weight:'800', k_font:'tokumin', k_weight:'800', box_on:false,
+        n_fill:'#f2f2f2', n_accent:'#e8c15a', n_tex:'gold', n_texAcc:true, n_sh:true, n_shc:'#000000', n_sho:0.9, n_shb:18, n_shx:0, n_shy:6,
+        k_tex:'gold', k_s1c:'#1a1000', k_s1w:2, k_sh:true, k_shc:'#000000', k_sho:0.95, k_shb:26, k_shx:0, k_shy:10, k_track:-0.02 } },
+    { name:'紺の明朝（明るい背景）', v:{ n_font:'tokumin', n_weight:'800', k_font:'tokumin', k_weight:'800', box_on:false,
+        n_fill:'#0d1b3d', n_accent:'#0d1b3d', n_sh:true, n_shc:'#ffffff', n_sho:0.9, n_shb:24, n_shx:0, n_shy:0,
+        k_fill:'#0d1b3d', k_sh:true, k_shc:'#ffffff', k_sho:0.95, k_shb:34, k_shx:0, k_shy:0, k_track:-0.02 } },
+    { name:'ネオン', v:{ box_on:false, k_fill:'#ffffff', k_sh:true, k_shc:'#00e5ff', k_sho:1, k_shb:40, k_shx:0, k_shy:0, k_s1c:'#00e5ff', k_s1w:4, n_sh:true, n_shc:'#ff2bd6', n_sho:1, n_shb:24, n_shx:0, n_shy:0, n_accent:'#ff7ae9', bg_grad:true, bg_c:'#05010f', bg_c2:'#1a0533' } },
+    { name:'超極太ポップ', v:{ n_font:'dela', n_weight:'400', k_font:'dela', k_weight:'400', box_c:'#ffffff', k_fill:'#ff3b30', k_s1w:0, n_accent:'#ff3b30' } },
+    { name:'筆文字', v:{ k_font:'potta', k_weight:'400', box_on:false, k_fill:'#ffffff', k_sh:true, k_shb:12, k_shx:6, k_shy:6, n_accent:'#e8463a', bg_grad:true, bg_c:'#000000', bg_c2:'#2b0a06' } },
+  ];
+  function setVal(id, v) {
+    const el = $(id); if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+  }
+  function applyStyle(v) {
+    const all = Object.assign({}, BASE_STYLE, v);
+    for (const k in all) { if (!/_weight$/.test(k)) setVal(k, all[k]); }
+    fillWeightSelect('n', all.n_weight); fillWeightSelect('k', all.k_weight);
+    updateOutputs(); save(); render();
+  }
+  const textIds = ['t1','t2','t3','t4'];
+
+  // =====================================================================
+  // persistence (text & style only — images stay in this session)
+  // =====================================================================
+  const KEY = 'thumbMaker.v3';
+  function load() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('thumbMaker.v2') || 'null'); } catch(e) {}
+    const p = PRESETS[0];
+    textIds.forEach((id,i) => $(id).value = p[i]);
+    if (!saved) return;
+    document.querySelectorAll('[data-save]').forEach(el => {
+      if (!(el.id in saved) || /_weight$/.test(el.id)) return;
+      if (el.type === 'checkbox') el.checked = saved[el.id];
+      else if (el.tagName === 'SELECT') { if ([...el.options].some(o => o.value === saved[el.id])) el.value = saved[el.id]; }
+      else el.value = saved[el.id];
+    });
+    fillWeightSelect('n', saved.n_weight); fillWeightSelect('k', saved.k_weight);
+  }
+  function collectSettings() {
+    const o = {};
+    document.querySelectorAll('[data-save]').forEach(el => o[el.id] = el.type === 'checkbox' ? el.checked : el.value);
+    return o;
+  }
+  // apply a settings object (only keys it contains)
+  function applySettings(o) {
+    document.querySelectorAll('[data-save]').forEach(el => {
+      if (!(el.id in o) || /_weight$/.test(el.id)) return;
+      if (el.type === 'checkbox') el.checked = !!o[el.id];
+      else if (el.tagName === 'SELECT') { if ([...el.options].some(op => op.value === o[el.id])) el.value = o[el.id]; }
+      else el.value = o[el.id];
+    });
+    fillWeightSelect('n', o.n_weight); fillWeightSelect('k', o.k_weight);
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(collectSettings())); } catch(e) {}
+    saveWorkSoon();
+  }
+
+  // =====================================================================
+  // text rendering
+  // =====================================================================
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  }
+  function getStyle(p) {
+    const v = id => $(p + '_' + id);
+    const f = fontById(v('font').value);
+    return {
+      css: f.css, weight: v('weight').value, track: +v('track').value,
+      fill: v('fill').value, accent: v('accent').value, grad: v('grad').checked, fill2: v('fill2').value,
+      s1c: v('s1c').value, s1w: +v('s1w').value, s2c: v('s2c').value, s2w: +v('s2w').value,
+      sh: v('sh').checked, shc: hexA(v('shc').value, +v('sho').value), shb: +v('shb').value, shx: +v('shx').value, shy: +v('shy').value,
+      tex: v('tex').value, texAcc: v('texAcc').checked, texAmt: +v('texAmt').value,
+    };
+  }
+  const fontStr = (S, px) => `${S.weight} ${px}px ${S.css}, ${FALLBACK}`;
+  const isSmallChar = ch => /[ぁ-ゟ、。，．・…！？!?「」『』（）()]/.test(ch);
+
+  // markup: *accent*  {small}  [big]
+  function parse(str, smallRatio, auto) {
+    const out = []; let force = null, acc = false;
+    for (const ch of str) {
+      if (ch === '*') { acc = !acc; continue; }
+      if (ch === '{') { force = 'small'; continue; }
+      if (ch === '}') { force = null; continue; }
+      if (ch === '[') { force = 'big'; continue; }
+      if (ch === ']') { force = null; continue; }
+      let s = 1;
+      if (force === 'small') s = smallRatio;
+      else if (force === 'big') s = 1;
+      else if (auto && isSmallChar(ch)) s = smallRatio;
+      out.push({ ch, s, acc });
+    }
+    return out;
+  }
+  function layout(runs, base, S) {
+    let x = 0; const items = [];
+    runs.forEach((r, i) => {
+      const px = base * r.s; ctx.font = fontStr(S, px);
+      const w = ctx.measureText(r.ch).width;
+      items.push({ ch: r.ch, px, acc: r.acc, x });
+      x += w + (i < runs.length - 1 ? S.track * px : 0);
+    });
+    return { items, width: x };
+  }
+  function metrics(S, px, str) {
+    ctx.font = fontStr(S, px);
+    const m = ctx.measureText(str || '国');
+    return { a: m.actualBoundingBoxAscent || px * 0.88, d: m.actualBoundingBoxDescent || px * 0.12 };
+  }
+  // paint in passes so outlines never cover neighbouring glyphs
+  function paint(L, x0, baseline, S) {
+    ctx.lineJoin = 'round'; ctx.miterLimit = 2; ctx.textBaseline = 'alphabetic';
+    const outer = S.s2w > 0 ? S.s1w + S.s2w : 0;
+    const each = fn => L.items.forEach(it => { ctx.font = fontStr(S, it.px); fn(it, x0 + it.x); });
+    const fillFor = it => {
+      if (it.acc) return S.accent;
+      if (!S.grad) return S.fill;
+      const g = ctx.createLinearGradient(0, baseline - it.px * 0.88, 0, baseline + it.px * 0.1);
+      g.addColorStop(0, S.fill); g.addColorStop(1, S.fill2); return g;
+    };
+    if (S.sh) {
+      ctx.save();
+      // draw the glyphs far off-canvas and throw only their shadow back into view
+      const OFF = 20000;
+      ctx.shadowColor = S.shc; ctx.shadowBlur = S.shb; ctx.shadowOffsetX = S.shx + OFF; ctx.shadowOffsetY = S.shy;
+      each((it, x) => {
+        x -= OFF;
+        if (outer) { ctx.strokeStyle = '#000'; ctx.lineWidth = outer * 2; ctx.strokeText(it.ch, x, baseline); }
+        else if (S.s1w) { ctx.strokeStyle = '#000'; ctx.lineWidth = S.s1w * 2; ctx.strokeText(it.ch, x, baseline); }
+        ctx.fillStyle = '#000'; ctx.fillText(it.ch, x, baseline);
+      });
+      ctx.restore();
+    }
+    if (outer) each((it, x) => { ctx.strokeStyle = S.s2c; ctx.lineWidth = outer * 2; ctx.strokeText(it.ch, x, baseline); });
+    if (S.s1w) each((it, x) => { ctx.strokeStyle = S.s1c; ctx.lineWidth = S.s1w * 2; ctx.strokeText(it.ch, x, baseline); });
+    const texOn = it => S.tex !== 'none' && (!S.texAcc || it.acc);
+    // plain & metal fills go straight onto the canvas
+    each((it, x) => {
+      if (texOn(it) && S.tex === 'grunge') return;
+      ctx.fillStyle = texOn(it) ? metalFill(S.tex, baseline, it.px) : fillFor(it);
+      ctx.fillText(it.ch, x, baseline);
+    });
+    // grunge: draw on a scratch canvas, punch holes with the grunge pattern, then composite
+    if (S.tex === 'grunge' && L.items.some(texOn)) {
+      const t = scratch(), tg = t.getContext('2d');
+      tg.setTransform(1, 0, 0, 1, 0, 0); tg.clearRect(0, 0, W, H);
+      tg.textBaseline = 'alphabetic';
+      L.items.forEach(it => {
+        if (!texOn(it)) return;
+        tg.font = fontStr(S, it.px); tg.fillStyle = fillFor(it);
+        tg.fillText(it.ch, x0 + it.x, baseline);
+      });
+      tg.globalCompositeOperation = 'destination-out';
+      tg.globalAlpha = S.texAmt;
+      tg.fillStyle = tg.createPattern(grungeTile(), 'repeat');
+      tg.fillRect(0, 0, W, H);
+      tg.globalAlpha = 1; tg.globalCompositeOperation = 'source-over';
+      ctx.drawImage(t, 0, 0);
+    }
+  }
+  const METALS = {
+    gold:   [[0,'#fff7d1'],[0.3,'#f2cd63'],[0.48,'#9a6a17'],[0.55,'#c99430'],[0.72,'#ffe8a0'],[1,'#a8761f']],
+    silver: [[0,'#ffffff'],[0.3,'#dcdcdc'],[0.48,'#6f6f6f'],[0.55,'#9d9d9d'],[0.72,'#f2f2f2'],[1,'#7d7d7d']],
+  };
+  function metalFill(kind, baseline, px) {
+    const g = ctx.createLinearGradient(0, baseline - px * 0.9, 0, baseline + px * 0.12);
+    METALS[kind].forEach(([o, c]) => g.addColorStop(o, c));
+    return g;
+  }
+  let scratchC = null;
+  function scratch() {
+    if (!scratchC) { scratchC = document.createElement('canvas'); scratchC.width = W; scratchC.height = H; }
+    return scratchC;
+  }
+  let grungeC = null;
+  function grungeTile() {
+    if (grungeC) return grungeC;
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d');
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    // soft blotches (worn ink)
+    for (let i = 0; i < 40; i++) {
+      const x = rnd() * N, y = rnd() * N, r = 10 + rnd() * 45;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(0,0,0,${0.25 + rnd() * 0.45})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    // specks
+    for (let i = 0; i < 3800; i++) {
+      g.fillStyle = `rgba(0,0,0,${0.5 + rnd() * 0.5})`;
+      g.beginPath(); g.arc(rnd() * N, rnd() * N, 0.4 + rnd() * rnd() * 3.2, 0, Math.PI * 2); g.fill();
+    }
+    // scratches
+    g.lineCap = 'round';
+    for (let i = 0; i < 90; i++) {
+      const x = rnd() * N, y = rnd() * N, a = (rnd() - 0.5) * 1.2 + (rnd() < 0.5 ? 0 : Math.PI / 2), l = 8 + rnd() * 50;
+      g.strokeStyle = `rgba(0,0,0,${0.4 + rnd() * 0.6})`; g.lineWidth = 0.6 + rnd() * 1.8;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    grungeC = c; return c;
+  }
+  function fitLine(str, base, S, maxW, sr, auto) {
+    const runs = parse(str, sr, auto);
+    let L = layout(runs, base, S);
+    if (L.width > maxW) { base = base * maxW / L.width; L = layout(runs, base, S); }
+    L.base = base; return L;
+  }
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  function geom() {
+    const LW = Math.round(W * +$('leftW').value);
+    const right = $('side').value === 'right';
+    const panel = right ? { x: 0, w: LW } : { x: W - LW, w: LW };
+    const text = right ? { x0: LW + 28, x1: W - 22 } : { x0: 26, x1: W - LW - 28 };
+    return { LW, right, panel, text };
+  }
+
+  let textBounds = null;   // where the text block was drawn (for tap/drag)
+  function drawText(G) {
+    if ($('textMode').value === 'free') return drawFree(G);
+    textBounds = { x: G.text.x0, y: 0, w: G.text.x1 - G.text.x0, h: H };
+    const sr = +$('small').value;
+    const N = getStyle('n'), K = getStyle('k');
+    const x0 = G.text.x0, maxW = G.text.x1 - x0;
+    ctx.save();
+    const s1 = +$('s1').value;
+    const L1 = fitLine($('t1').value, s1, N, maxW, sr, true);
+    paint(L1, x0, 44 + metrics(N, L1.base).a, N);
+
+    const s3 = +$('s3').value;
+    const sufL = $('t3').value ? fitLine($('t3').value, s3, N, 400, 1, false) : null;
+    const sufW = sufL ? sufL.width + 14 : 0;
+    const midY = 364;
+    const kwRuns = parse($('t2').value, 0.6, false);
+    if (kwRuns.length) {
+      const boxOn = $('box_on').checked;
+      const padK = boxOn ? +$('box_pad').value : 0;
+      const per = layout(kwRuns, 100, K).width / 100;
+      const f = Math.min(+$('s2').value, (maxW - sufW) / (per + padK * 2));
+      const L = layout(kwRuns, f, K);
+      const pad = f * padK, bw = L.width + pad * 2, bh = f * 1.12;
+      const top = midY - bh / 2, bottom = midY + bh / 2;
+      if (boxOn) {
+        ctx.save();
+        if ($('box_sh').checked) {
+          ctx.shadowColor = hexA($('box_shc').value, 0.75); ctx.shadowBlur = +$('box_shb').value;
+          ctx.shadowOffsetX = ctx.shadowOffsetY = +$('box_shd').value;
+        }
+        ctx.fillStyle = $('box_c').value;
+        roundRect(x0, top, bw, bh, +$('box_r').value); ctx.fill();
+        ctx.restore();
+      }
+      const vb = metrics(K, f, kwRuns.map(r => r.ch).join(''));
+      paint(L, x0 + pad, midY + (vb.a - vb.d) / 2, K);
+      if (sufL) {
+        const sv = metrics(N, sufL.base, $('t3').value);
+        paint(sufL, x0 + bw + 12, bottom - sv.d - 2, N);
+      }
+    } else if (sufL) {
+      paint(sufL, x0, midY + sufL.base * 0.4, N);
+    }
+    const s4 = +$('s4').value;
+    const L4 = fitLine($('t4').value, s4, N, maxW, sr, true);
+    paint(L4, x0, 690 - metrics(N, L4.base).d, N);
+    ctx.restore();
+  }
+
+  // ---- free layout ----
+  const DEFAULT_LINES = [
+    { t:'気づけば、', size:104, st:'n', dx:0 },
+    { t:'人生は、', size:150, st:'n', dx:0 },
+    { t:'*変わっ*ていく。', size:150, st:'n', dx:0 },
+  ];
+  const FREE_PRESETS = [
+    { name:'気づけば、人生は変わっていく。', lines: DEFAULT_LINES },
+    { name:'焦る人ほど損をしている。', lines:[
+      { t:'焦る人ほど', size:120, st:'n', dx:-60 }, { t:'*損*を', size:230, st:'n', dx:0 }, { t:'している。', size:112, st:'n', dx:30 } ] },
+    { name:'休める人は、強い。', lines:[
+      { t:'休める人は、', size:118, st:'n', dx:0 }, { t:'強い。', size:270, st:'k', dx:40 } ] },
+    { name:'続ける力の秘密とは？', lines:[
+      { t:'続ける力の', size:112, st:'n', dx:0 }, { t:'秘密', size:250, st:'k', dx:0 }, { t:'とは？', size:104, st:'n', dx:120 } ] },
+    { name:'他人の評価が、気になる。', lines:[
+      { t:'他人の', size:120, st:'n', dx:-120 }, { t:'評価が、', size:140, st:'n', dx:0 }, { t:'*気になる。*', size:140, st:'n', dx:0 } ] },
+  ];
+  let lines = DEFAULT_LINES.map(l => Object.assign({}, l));
+
+  function drawFree(G) {
+    const sr = +$('small').value, N = getStyle('n'), K = getStyle('k');
+    const x0 = G.text.x0, x1 = G.text.x1, maxW = x1 - x0;
+    const lh = +$('fLh').value, align = $('fAlign').value;
+    const boxOn = $('box_on').checked, padK = +$('box_pad').value;
+    // lay out every line first so the block can be centred vertically
+    const laid = lines.map(ln => {
+      const S = ln.st === 'k' ? K : N;
+      const box = ln.st === 'k' && boxOn;
+      const pad = box ? padK : 0;
+      const L = fitLine(ln.t, ln.size, S, maxW / (1 + pad * 2), sr, true);
+      return { ln, S, L, box, pad: L.base * pad, h: L.base * lh };
+    });
+    const total = laid.reduce((a, b) => a + b.h, 0);
+    let y = H / 2 - total / 2 + +$('fy').value;
+    const ax = align === 'left' ? x0 : align === 'right' ? x1 : (x0 + x1) / 2;
+    const bx = +$('fx').value;
+    let minX = Infinity, maxX = -Infinity;
+    const top0 = y;
+    ctx.save();
+    laid.forEach(o => {
+      const w = o.L.width + o.pad * 2;
+      let lx = align === 'left' ? ax : align === 'right' ? ax - w : ax - w / 2;
+      lx += bx + (o.ln.dx || 0);
+      const base = o.L.base;
+      const baseline = y + (o.h - base) / 2 + base * 0.88;
+      if (o.box) {
+        ctx.save();
+        if ($('box_sh').checked) {
+          ctx.shadowColor = hexA($('box_shc').value, 0.75); ctx.shadowBlur = +$('box_shb').value;
+          ctx.shadowOffsetX = ctx.shadowOffsetY = +$('box_shd').value;
+        }
+        ctx.fillStyle = $('box_c').value;
+        const bh = base * 1.12, cy = baseline - base * 0.38;
+        roundRect(lx, cy - bh / 2, w, bh, +$('box_r').value); ctx.fill();
+        ctx.restore();
+      }
+      paint(o.L, lx + o.pad, baseline, o.S);
+      minX = Math.min(minX, lx); maxX = Math.max(maxX, lx + w);
+      y += o.h;
+    });
+    ctx.restore();
+    textBounds = lines.length ? { x: minX, y: top0, w: maxX - minX, h: total } : null;
+  }
+
+  function renderLines() {
+    const box = $('lineList'); box.innerHTML = '';
+    lines.forEach((ln, i) => {
+      const d = document.createElement('div'); d.className = 'line';
+      d.innerHTML = `
+        <div class="top">
+          <input type="text" aria-label="${i + 1}行目">
+          <button data-a="up" ${i === 0 ? 'disabled' : ''} aria-label="上へ">▲</button>
+          <button data-a="down" ${i === lines.length - 1 ? 'disabled' : ''} aria-label="下へ">▼</button>
+          <button data-a="del" aria-label="削除">✕</button>
+        </div>
+        <div class="opts">
+          <select aria-label="スタイル"><option value="n">白文字</option><option value="k">キーワード</option></select>
+          <div>
+            <div class="row"><span>大きさ</span><input type="range" data-k="size" min="50" max="360" step="1"><output></output></div>
+            <div class="row"><span>ずらし</span><input type="range" data-k="dx" min="-300" max="300" step="1"><output></output></div>
+          </div>
+        </div>`;
+      const inp = d.querySelector('input[type=text]'); inp.value = ln.t;
+      inp.addEventListener('input', () => { ln.t = inp.value; saveLines(); render(); });
+      const sel = d.querySelector('select'); sel.value = ln.st;
+      sel.addEventListener('change', () => { ln.st = sel.value; saveLines(); render(); });
+      d.querySelectorAll('input[type=range]').forEach(r => {
+        r.value = ln[r.dataset.k] || 0;
+        r.nextElementSibling.textContent = r.value;
+        r.addEventListener('input', e => { e.stopPropagation(); ln[r.dataset.k] = +r.value; r.nextElementSibling.textContent = r.value; saveLines(); schedule(); });
+      });
+      d.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        const a = b.dataset.a;
+        if (a === 'up' && i > 0) [lines[i - 1], lines[i]] = [lines[i], lines[i - 1]];
+        if (a === 'down' && i < lines.length - 1) [lines[i + 1], lines[i]] = [lines[i], lines[i + 1]];
+        if (a === 'del') lines.splice(i, 1);
+        saveLines(); renderLines(); render();
+      }));
+      box.appendChild(d);
+    });
+  }
+  function saveLines() { try { localStorage.setItem(KEY + '.lines', JSON.stringify(lines)); } catch (e) {} }
+  function loadLines() {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY + '.lines') || 'null');
+      if (Array.isArray(v)) lines = v.filter(l => l && typeof l.t === 'string');
+    } catch (e) {}
+  }
+  function syncMode() {
+    const free = $('textMode').value === 'free';
+    $('freeSection').style.display = free ? '' : 'none';
+    $('tplSection').style.display = free ? 'none' : '';
+  }
+
+  // =====================================================================
+  // image layers
+  // =====================================================================
+  const LAYER_DEFAULTS = {
+    fit:'free', x:0, y:0, scale:1, rot:0, flip:false, opacity:1, blend:'source-over',
+    bri:0, con:1, sat:1, dark:0, tint:'#1e4fa8', tintAmt:0, blur:0, feather:0,
+    sh:false, shColor:'#000000', shOp:0.7, shBlur:30, shDist:12, visible:true,
+  };
+  const LAYER_PRESETS = [
+    { name:'背景向け（暗く＋ぼかし）', v:{ fit:'cover', dark:0.45, blur:3, sat:0.7, con:1.1, feather:0, sh:false, rot:0, scale:1 } },
+    { name:'人物向け（白黒＋なじませ）', v:{ fit:'free', sat:0, con:1.3, bri:-0.03, feather:14, sh:false } },
+    { name:'表紙向け（傾け＋影）', v:{ fit:'free', rot:-7, scale:0.75, sh:true, shColor:'#000000', shOp:0.85, shBlur:34, shDist:16, feather:0 } },
+    { name:'素材を重ねる（スクリーン）', v:{ fit:'cover', blend:'screen', opacity:0.75, feather:0, sh:false } },
+    { name:'後光（光る縁）', v:{ sh:true, shColor:'#ffffff', shOp:0.6, shBlur:40, shDist:0 } },
+    { name:'効果をすべて解除', v:null },
+  ];
+
+  const TEXT_LAYER = { id:'text', type:'text', visible:true };
+  let layers = [TEXT_LAYER];     // index 0 = back, last = front
+  let selected = null;
+  let nextId = 1;
+
+  function loadImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, MAX_SRC / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * s));
+        c.height = Math.max(1, Math.round(img.naturalHeight * s));
+        const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+        g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        // thumbnail
+        const t = document.createElement('canvas'); const ts = 64 / Math.max(c.width, c.height);
+        t.width = Math.max(1, Math.round(c.width * ts)); t.height = Math.max(1, Math.round(c.height * ts));
+        t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+        resolve({ src: c, thumb: t.toDataURL('image/png') });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(); };
+      img.src = url;
+    });
+  }
+  async function addFiles(files) {
+    const list = [...files].filter(f => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png|webp|gif)$/i.test(f.name));
+    if (!list.length) return;
+    flash('画像を読み込み中…');
+    for (const f of list) {
+      try {
+        const { src, thumb } = await loadImageFile(f);
+        const hasImage = layers.some(l => l.type === 'image');
+        const L = Object.assign({}, LAYER_DEFAULTS, {
+          id: 'L' + (nextId++), type: 'image', name: f.name.replace(/\.[^.]+$/, '') || '画像',
+          src, thumb, proc: null, procKey: '',
+          fit: hasImage ? 'free' : 'cover',
+        });
+        // new images go directly below the text layer (so text stays on top)
+        const ti = layers.indexOf(TEXT_LAYER);
+        layers.splice(ti, 0, L);
+        selected = L;
+        store.putImage('work:img:' + L.id, L.src);
+      } catch (e) { flash('読み込めない画像がありました'); }
+    }
+    flash('');
+    renderLayerList(); syncEditor(); schedule();
+  }
+
+  // ---- per-layer processing (cached until its settings change) ----
+  function blurCanvas(src, r) {
+    if (r <= 0) return src;
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d');
+    if (HAS_FILTER) { g.filter = `blur(${r}px)`; g.drawImage(src, 0, 0); g.filter = 'none'; return c; }
+    // fallback: shrink & enlarge twice
+    const f = Math.max(0.02, 1 / (1 + r / 1.5));
+    const a = document.createElement('canvas');
+    a.width = Math.max(2, Math.round(src.width * f)); a.height = Math.max(2, Math.round(src.height * f));
+    const ag = a.getContext('2d'); ag.imageSmoothingQuality = 'high'; ag.drawImage(src, 0, 0, a.width, a.height);
+    const b = document.createElement('canvas');
+    b.width = Math.max(2, Math.round(a.width / 2)); b.height = Math.max(2, Math.round(a.height / 2));
+    const bg2 = b.getContext('2d'); bg2.imageSmoothingQuality = 'high'; bg2.drawImage(a, 0, 0, b.width, b.height);
+    ag.clearRect(0, 0, a.width, a.height); ag.drawImage(b, 0, 0, a.width, a.height);
+    g.imageSmoothingQuality = 'high'; g.drawImage(a, 0, 0, c.width, c.height);
+    return c;
+  }
+  function processLayer(L) {
+    const key = [L.bri, L.con, L.sat, L.dark, L.tint, L.tintAmt, L.blur, L.feather].join('|');
+    if (L.proc && L.procKey === key) return L.proc;
+    const src = L.src, w = src.width, h = src.height;
+    const k = Math.max(w, h) / 1280;   // effect sizes are given in output pixels
+    let c = document.createElement('canvas'); c.width = w; c.height = h;
+    let g = c.getContext('2d'); g.drawImage(src, 0, 0);
+
+    if (L.bri || L.con !== 1 || L.sat !== 1 || L.dark || L.tintAmt) {
+      const d = g.getImageData(0, 0, w, h), p = d.data;
+      const tn = parseInt(L.tint.slice(1), 16), tr = tn >> 16 & 255, tg = tn >> 8 & 255, tb = tn & 255;
+      const bri = L.bri * 255, con = L.con, sat = L.sat, ta = L.tintAmt, dk = 1 - L.dark;
+      const ov = (a, b) => a < 128 ? 2 * a * b / 255 : 255 - 2 * (255 - a) * (255 - b) / 255;
+      for (let i = 0; i < p.length; i += 4) {
+        if (p[i + 3] === 0) continue;
+        let r = p[i], gg = p[i + 1], b = p[i + 2];
+        const l0 = r * 0.299 + gg * 0.587 + b * 0.114;
+        r = l0 + (r - l0) * sat; gg = l0 + (gg - l0) * sat; b = l0 + (b - l0) * sat;
+        r = (r + bri - 128) * con + 128; gg = (gg + bri - 128) * con + 128; b = (b + bri - 128) * con + 128;
+        if (ta) {
+          const l = Math.max(0, Math.min(255, r * 0.299 + gg * 0.587 + b * 0.114));
+          r += (ov(l, tr) - r) * ta; gg += (ov(l, tg) - gg) * ta; b += (ov(l, tb) - b) * ta;
+        }
+        p[i] = r * dk; p[i + 1] = gg * dk; p[i + 2] = b * dk;
+      }
+      g.putImageData(d, 0, 0);
+    }
+    if (L.blur) {
+      const r = L.blur * k;
+      const b = blurCanvas(c, r);
+      if (HAS_FILTER) { // filter blur fades the outer edge: keep a sharp copy underneath
+        const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
+        const g2 = c2.getContext('2d'); g2.drawImage(c, 0, 0); g2.drawImage(b, 0, 0); c = c2;
+        // keep original alpha
+        g2.globalCompositeOperation = 'destination-in'; g2.drawImage(src, 0, 0);
+      } else c = b;
+      g = c.getContext('2d');
+    }
+    if (L.feather) {
+      const r = L.feather * k, pad = Math.ceil(r * 2);
+      const m = document.createElement('canvas'); m.width = w + pad * 2; m.height = h + pad * 2;
+      const mg = m.getContext('2d');
+      // shrink the shape a little so the fade ends at the original edge
+      const inset = r * 0.8;
+      mg.drawImage(src, pad + inset, pad + inset, Math.max(1, w - inset * 2), Math.max(1, h - inset * 2));
+      mg.globalCompositeOperation = 'source-in'; mg.fillStyle = '#fff'; mg.fillRect(0, 0, m.width, m.height);
+      const mb = blurCanvas(m, r);
+      const out = document.createElement('canvas'); out.width = w; out.height = h;
+      const og = out.getContext('2d'); og.drawImage(c, 0, 0);
+      og.globalCompositeOperation = 'destination-in'; og.drawImage(mb, -pad, -pad);
+      c = out;
+    }
+    L.proc = c; L.procKey = key;
+    return c;
+  }
+
+  function rectOf(L) {
+    const G = geom(), P = G.panel, iw = L.src.width, ih = L.src.height;
+    if (L.fit === 'cover') {
+      const s = Math.max(W / iw, H / ih) * L.scale;
+      return { cx: W / 2 + L.x, cy: H / 2 + L.y, w: iw * s, h: ih * s, clip: null };
+    }
+    if (L.fit === 'panel') {
+      const s = Math.max(P.w / iw, H / ih) * L.scale;
+      return { cx: P.x + P.w / 2 + L.x, cy: H / 2 + L.y, w: iw * s, h: ih * s, clip: P };
+    }
+    const h = H * 0.78 * L.scale, w = iw * h / ih;
+    return { cx: P.x + P.w / 2 + L.x, cy: H - h / 2 + L.y, w, h, clip: null };
+  }
+  function drawLayer(L) {
+    const proc = processLayer(L), r = rectOf(L);
+    ctx.save();
+    if (r.clip) { ctx.beginPath(); ctx.rect(r.clip.x, 0, r.clip.w, H); ctx.clip(); }
+    ctx.globalAlpha = L.opacity;
+    ctx.globalCompositeOperation = L.blend;
+    if (L.sh) {
+      ctx.shadowColor = hexA(L.shColor, L.shOp); ctx.shadowBlur = L.shBlur;
+      ctx.shadowOffsetX = L.shDist; ctx.shadowOffsetY = L.shDist;
+    }
+    ctx.translate(r.cx, r.cy);
+    ctx.rotate(L.rot * Math.PI / 180);
+    if (L.flip) ctx.scale(-1, 1);
+    ctx.drawImage(proc, -r.w / 2, -r.h / 2, r.w, r.h);
+    ctx.restore();
+  }
+  function hitLayer(L, p) {
+    const r = rectOf(L);
+    if (r.clip && (p.x < r.clip.x || p.x > r.clip.x + r.clip.w)) return false;
+    const a = -L.rot * Math.PI / 180, dx = p.x - r.cx, dy = p.y - r.cy;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    return Math.abs(lx) <= r.w / 2 && Math.abs(ly) <= r.h / 2;
+  }
+
+  // ---- finishing ----
+  let grainTile = null;
+  function grain() {
+    if (grainTile) return grainTile;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'), d = g.createImageData(256, 256), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const v = Math.random() * 255; p[i] = p[i+1] = p[i+2] = v; p[i+3] = 255; }
+    g.putImageData(d, 0, 0); grainTile = c; return c;
+  }
+  function drawVignette() {
+    const v = +$('vig').value; if (!v) return;
+    const size = +$('vigSize').value;
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * size * 0.6, W / 2, H / 2, Math.hypot(W, H) / 2);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${v})`);
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+  function drawGrain() {
+    const a = +$('grain').value; if (!a) return;
+    ctx.save(); ctx.globalAlpha = a; ctx.globalCompositeOperation = 'overlay';
+    ctx.fillStyle = ctx.createPattern(grain(), 'repeat'); ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+
+  // =====================================================================
+  // main draw
+  // =====================================================================
+  function draw(exporting) {
+    const G = geom();
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, W, H);
+    if ($('bg_grad').checked) {
+      const g = G.right ? ctx.createLinearGradient(G.LW, 0, W, H) : ctx.createLinearGradient(W - G.LW, 0, 0, H);
+      g.addColorStop(0, $('bg_c').value); g.addColorStop(1, $('bg_c2').value); ctx.fillStyle = g;
+    } else ctx.fillStyle = $('bg_c').value;
+    ctx.fillRect(0, 0, W, H);
+
+    const anyImage = layers.some(l => l.type === 'image' && l.visible);
+    if (!anyImage && !exporting) {
+      const P = G.panel;
+      ctx.fillStyle = '#2b2b2b'; ctx.fillRect(P.x, 0, P.w, H);
+      ctx.fillStyle = '#777'; ctx.font = `700 28px ${FALLBACK}`; ctx.textAlign = 'center';
+      ctx.fillText('「画像」タブから', P.x + P.w / 2, H / 2 - 10);
+      ctx.fillText('画像を追加', P.x + P.w / 2, H / 2 + 32);
+      ctx.textAlign = 'left';
+    }
+    for (const L of layers) {
+      if (!L.visible) continue;
+      if (L.type === 'text') { drawVignette(); drawText(G); }
+      else drawLayer(L);
+    }
+    drawGrain();
+
+    // selection outline (preview only)
+    if (!exporting && selected && selected.type === 'text' && textBounds && $('textMode').value === 'free') {
+      ctx.save(); ctx.setLineDash([12, 8]); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.7)';
+      ctx.strokeRect(textBounds.x - 12, textBounds.y - 4, textBounds.w + 24, textBounds.h + 8); ctx.restore();
+    }
+    if (!exporting && selected && selected.type === 'image' && selected.visible) {
+      const r = rectOf(selected);
+      ctx.save();
+      ctx.translate(r.cx, r.cy); ctx.rotate(selected.rot * Math.PI / 180);
+      ctx.setLineDash([12, 8]); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.strokeRect(-r.w / 2, -r.h / 2, r.w, r.h);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  let raf = 0;
+  function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); saveWorkSoon(); }
+
+  let fontReq = 0;
+  function render() {
+    schedule();
+    const txt = textIds.map(id => $(id).value).join('') + lines.map(l => l.t).join('') + '国';
+    const n = ++fontReq;
+    if (!(document.fonts && document.fonts.load)) return;
+    const jobs = ['n','k'].map(p => {
+      const S = getStyle(p);
+      return document.fonts.load(`${S.weight} 100px ${S.css}`, txt).catch(() => {});
+    });
+    Promise.all(jobs).then(() => { if (n === fontReq) schedule(); });
+  }
+
+  // =====================================================================
+  // layer list & editor
+  // =====================================================================
+  const FIT_LABEL = { cover:'画面いっぱい', panel:'画像エリア', free:'自由配置' };
+  function renderLayerList() {
+    const ul = $('layerList'); ul.innerHTML = '';
+    const imgCount = layers.filter(l => l.type === 'image').length;
+    if (!imgCount) {
+      const li = document.createElement('li');
+      li.className = 'empty'; li.style.background = 'none'; li.style.cursor = 'default';
+      li.textContent = 'まだ画像がありません。背景、人物、本の表紙、素材などを追加してください。';
+      ul.appendChild(li);
+    }
+    [...layers].reverse().forEach(L => {
+      const i = layers.indexOf(L);
+      const li = document.createElement('li');
+      if (L === selected) li.classList.add('sel');
+      if (!L.visible) li.classList.add('hidden');
+      li.innerHTML = (L.type === 'text'
+          ? `<div class="ti">文</div><div class="nm">文字<small>テキスト全体</small></div>`
+          : `<img src="${L.thumb}" alt=""><div class="nm"></div>`) +
+        `<button data-a="up" aria-label="前へ" ${i === layers.length - 1 ? 'disabled' : ''}>▲</button>` +
+        `<button data-a="down" aria-label="後ろへ" ${i === 0 ? 'disabled' : ''}>▼</button>` +
+        `<button data-a="vis" aria-label="表示切替">${L.visible ? '表示' : '非表示'}</button>` +
+        (L.type === 'image' ? `<button data-a="del" aria-label="削除">✕</button>` : '');
+      if (L.type === 'image') {
+        const nm = li.querySelector('.nm');
+        nm.textContent = L.name;
+        const sm = document.createElement('small'); sm.textContent = FIT_LABEL[L.fit]; nm.appendChild(sm);
+      }
+      li.addEventListener('click', e => {
+        const a = e.target.dataset && e.target.dataset.a;
+        const idx = layers.indexOf(L);
+        if (a === 'up' && idx < layers.length - 1) { layers.splice(idx, 1); layers.splice(idx + 1, 0, L); }
+        else if (a === 'down' && idx > 0) { layers.splice(idx, 1); layers.splice(idx - 1, 0, L); }
+        else if (a === 'vis') { L.visible = !L.visible; }
+        else if (a === 'del') {
+          layers.splice(idx, 1); L.src = L.proc = null;
+          store.del('work:img:' + L.id);
+          if (selected === L) selected = null;
+        }
+        if (a !== 'del') selected = L;
+        renderLayerList(); syncEditor(); schedule();
+      });
+      ul.appendChild(li);
+    });
+  }
+  const lpEls = () => document.querySelectorAll('[data-lp]');
+  function syncEditor() {
+    const isImg = selected && selected.type === 'image';
+    $('layerEditor').style.display = isImg ? '' : 'none';
+    $('textLayerNote').style.display = selected && selected.type === 'text' ? '' : 'none';
+    if (!isImg) return;
+    $('edTitle').textContent = '選択中：' + selected.name;
+    lpEls().forEach(el => {
+      const v = selected[el.dataset.lp];
+      if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+    });
+    updateOutputs();
+  }
+  function applyLayerPreset(v) {
+    if (!selected || selected.type !== 'image') return;
+    const keep = { x: selected.x, y: selected.y };
+    if (v === null) {
+      const fit = selected.fit;
+      Object.assign(selected, LAYER_DEFAULTS, { fit, visible: true, x: keep.x, y: keep.y });
+    } else {
+      if (v.fit && v.fit !== selected.fit) { selected.x = selected.y = 0; }
+      Object.assign(selected, v);
+    }
+    renderLayerList(); syncEditor(); schedule();
+  }
+  LAYER_PRESETS.forEach(p => {
+    const b = document.createElement('button'); b.textContent = p.name;
+    b.onclick = () => applyLayerPreset(p.v);
+    $('layerPresets').appendChild(b);
+  });
+  $('posReset').onclick = () => {
+    if (!selected || selected.type !== 'image') return;
+    selected.x = selected.y = 0; selected.rot = 0; selected.scale = 1; syncEditor(); schedule();
+  };
+
+  // =====================================================================
+  // UI wiring
+  // =====================================================================
+  function fmt(i) {
+    const v = +i.value, k = i.id || i.dataset.lp;
+    if (k === 'leftW') return Math.round(v * 100) + '%';
+    if (/_sho$|^(opacity|shOp|tintAmt|dark|vig|grain)$/.test(k)) return Math.round(v * 100) + '%';
+    if (k === 'rot') return v + '°';
+    if (k === 'scale' || k === 'con' || k === 'sat') return v.toFixed(2);
+    return (Math.abs(v) < 5 && !Number.isInteger(v)) ? v.toFixed(2) : v;
+  }
+  function updateOutputs() {
+    document.querySelectorAll('.row').forEach(r => {
+      const i = r.querySelector('input'), o = r.querySelector('output');
+      if (i && o) o.textContent = fmt(i);
+    });
+  }
+  function onControl(e) {
+    const el = e.target;
+    if (el.type === 'file') return;
+    if (el.dataset.lp) {
+      if (!selected || selected.type !== 'image') return;
+      const k = el.dataset.lp;
+      let v = el.type === 'checkbox' ? el.checked : (el.type === 'range' ? +el.value : el.value);
+      if (k === 'fit' && v !== selected.fit) { selected.x = selected.y = 0; selected.scale = 1; }
+      selected[k] = v;
+      if (k === 'fit') { renderLayerList(); syncEditor(); }
+      updateOutputs(); schedule(); return;
+    }
+    if (!el.id) return;
+    if (/_font$/.test(el.id)) fillWeightSelect(el.id[0]);
+    updateOutputs(); save(); render();
+  }
+  document.querySelector('.controls').addEventListener('input', onControl);
+  document.querySelector('.controls').addEventListener('change', e => {
+    if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') onControl(e);
+  });
+
+  $('textMode').addEventListener('change', syncMode);
+  $('addLine').onclick = () => { lines.push({ t:'新しい行', size:110, st:'n', dx:0 }); saveLines(); renderLines(); render(); };
+  $('fReset').onclick = () => { $('fx').value = 0; $('fy').value = 0; updateOutputs(); save(); schedule(); };
+  FREE_PRESETS.forEach(pr => {
+    const b = document.createElement('button'); b.textContent = pr.name;
+    b.onclick = () => { lines = pr.lines.map(l => Object.assign({}, l)); saveLines(); renderLines(); render(); };
+    $('freePresets').appendChild(b);
+  });
+
+  $('addBtn').onclick = () => $('imgFile').click();
+  $('imgFile').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+
+  // custom font upload
+  let userFontN = 0;
+  $('fontBtn').onclick = () => $('fontFile').click();
+  $('fontFile').addEventListener('change', async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const fam = 'UserFont' + (++userFontN);
+      const face = new FontFace(fam, buf);
+      await face.load(); document.fonts.add(face);
+      const id = 'user' + userFontN;
+      FONTS.push({ id, name: '📁 ' + file.name.replace(/\.[^.]+$/, ''), css: `"${fam}"`, w: [400] });
+      ['n','k'].forEach(fillFontSelect);
+      $('k_font').value = id; fillWeightSelect('k');
+      flash('フォントを追加しました（キーワードに適用）');
+      save(); render();
+    } catch (err) { flash('このフォントファイルは読み込めませんでした'); }
+    e.target.value = '';
+  });
+
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.textContent = (p[0] + p[1] + p[2] + p[3]).replace(/\*/g, '');
+    b.onclick = () => { textIds.forEach((id,i) => $(id).value = p[i]); save(); render(); };
+    $('presets').appendChild(b);
+  });
+  STYLE_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.textContent = p.name; b.onclick = () => applyStyle(p.v);
+    $('stylePresets').appendChild(b);
+  });
+
+  // ---- canvas: tap to select, drag to move, pinch to zoom/rotate ----
+  const pts = new Map();
+  let drag = null, pinch = null;
+  function toCanvas(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+  }
+  const hitText = p => !!textBounds && $('textMode').value === 'free' && TEXT_LAYER.visible &&
+    p.x >= textBounds.x - 20 && p.x <= textBounds.x + textBounds.w + 20 && p.y >= textBounds.y - 20 && p.y <= textBounds.y + textBounds.h + 20;
+  function pickAt(p) {
+    if (selected && selected.visible && (selected.type === 'text' ? hitText(p) : hitLayer(selected, p))) return selected;
+    const top = [...layers].reverse().filter(l => l.visible);
+    return top.find(l => l.type === 'text' ? hitText(p) : (l.fit !== 'cover' && hitLayer(l, p)))
+        || top.find(l => l.type === 'image' && hitLayer(l, p)) || null;
+  }
+  function startDrag(p) {
+    if (selected && selected.type === 'text' && $('textMode').value === 'free') {
+      drag = { sx: p.x, sy: p.y, ox: +$('fx').value, oy: +$('fy').value, text: true }; return;
+    }
+    if (!selected || selected.type !== 'image') { drag = null; return; }
+    drag = { sx: p.x, sy: p.y, ox: selected.x, oy: selected.y };
+  }
+  cv.addEventListener('pointerdown', e => {
+    const p = toCanvas(e); pts.set(e.pointerId, p);
+    cv.setPointerCapture(e.pointerId);
+    if (pts.size === 1) {
+      const t = pickAt(p);
+      if (t && t !== selected) { selected = t; renderLayerList(); syncEditor(); schedule(); }
+      startDrag(p);
+      if (drag) cv.classList.add('dragging');
+    } else if (pts.size === 2 && selected && selected.type === 'image') {
+      const [a, b] = [...pts.values()];
+      pinch = { d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x), s: selected.scale, r: selected.rot };
+      drag = null;
+    }
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    const p = toCanvas(e); pts.set(e.pointerId, p);
+    if (pinch && pts.size >= 2) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(b.x - a.x, b.y - a.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+      selected.scale = Math.max(0.1, Math.min(4, pinch.s * d / pinch.d));
+      selected.rot = Math.max(-180, Math.min(180, pinch.r + (ang - pinch.ang) * 180 / Math.PI));
+      syncEditor(); schedule();
+    } else if (drag && drag.text) {
+      $('fx').value = Math.round(drag.ox + p.x - drag.sx); $('fy').value = Math.round(drag.oy + p.y - drag.sy);
+      updateOutputs(); schedule();
+    } else if (drag) {
+      selected.x = drag.ox + p.x - drag.sx; selected.y = drag.oy + p.y - drag.sy; schedule();
+    }
+  });
+  function endPointer(e) {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    if (pts.size === 1) startDrag([...pts.values()][0]);
+    if (pts.size === 0) { if (drag && drag.text) save(); drag = null; cv.classList.remove('dragging'); }
+  }
+  cv.addEventListener('pointerup', endPointer); cv.addEventListener('pointercancel', endPointer);
+  cv.addEventListener('dragover', e => e.preventDefault());
+  cv.addEventListener('drop', e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+
+  // =====================================================================
+  // export
+  // =====================================================================
+  let msgT;
+  function flash(t) { $('msg').textContent = t; clearTimeout(msgT); if (t) msgT = setTimeout(() => $('msg').textContent = '', 4000); }
+  function filename() {
+    const src = $('textMode').value === 'free' ? lines.map(l => l.t).join('') : $('t2').value;
+    const k = (src.replace(/[\\/:*?"<>|{}\[\]\s*]/g, '').slice(0, 20)) || 'image';
+    return `thumbnail_${k}.png`;
+  }
+  let downloads = null;
+  try {
+    if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { downloads = d; }).catch(() => {});
+  } catch (e) {}
+  // outside Claude: plain browser download
+  function browserDownload(data, name, type) {
+    try {
+      const blob = data instanceof Blob ? data : new Blob([data], { type });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+      return true;
+    } catch (e) { return false; }
+  }
+  function exportBlob() {
+    draw(true);
+    return new Promise(res => cv.toBlob(b => { draw(); res(b); }, 'image/png'));
+  }
+  $('exportBtn').onclick = async () => {
+    const blob = await exportBlob();
+    $('outImg').src = URL.createObjectURL(blob); $('out').classList.add('on');
+    if (downloads) {
+      downloads.save({ filename: filename(), data: blob })
+        .then(() => flash('保存しました'))
+        .catch(err => flash(err && err.code === 'declined' ? '保存をキャンセルしました' : '表示された画像を長押しで保存してください'));
+    } else if (browserDownload(blob, filename(), 'image/png')) {
+      flash('ダウンロードしました（表示された画像を長押しでも保存できます）');
+    }
+  };
+  $('outClose').onclick = () => $('out').classList.remove('on');
+  $('out').addEventListener('click', e => { if (e.target.id === 'out') $('out').classList.remove('on'); });
+  $('copyBtn').onclick = async () => {
+    try {
+      const blobP = exportBlob();
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobP })]);
+      flash('クリップボードにコピーしました');
+    } catch (e) { flash('この環境ではコピーできませんでした。「PNGを書き出す」から保存してください'); }
+  };
+
+
+  // =====================================================================
+  // on-device storage (IndexedDB): work in progress, my presets
+  // =====================================================================
+  const store = (() => {
+    let dbp = null, ok = true;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise((res, rej) => {
+        try {
+          const r = indexedDB.open('thumbMaker', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('kv');
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => rej(r.error);
+          r.onblocked = () => rej(new Error('blocked'));
+        } catch (e) { rej(e); }
+      });
+      dbp.catch(() => { ok = false; });
+      return dbp;
+    }
+    function tx(mode, fn) {
+      return open().then(db => new Promise((res, rej) => {
+        const t = db.transaction('kv', mode), req = fn(t.objectStore('kv'));
+        t.oncomplete = () => res(req && req.result);
+        t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+      }));
+    }
+    const api = {
+      get: k => tx('readonly', s => s.get(k)),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)),
+      del: k => tx('readwrite', s => s.delete(k)).catch(() => {}),
+      keys: () => tx('readonly', s => s.getAllKeys()),
+      get ok() { return ok; },
+      async putImage(key, canvas) {
+        try { await api.set(key, await canvasBlob(canvas)); } catch (e) { setStatus(false); }
+      },
+    };
+    return api;
+  })();
+
+  // PNG when the image has transparency (cut-outs), otherwise a smaller JPEG
+  function hasAlpha(c) {
+    const g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height).data;
+    const step = 4 * Math.max(1, Math.floor(d.length / 4 / 40000));
+    for (let i = 3; i < d.length; i += step) if (d[i] < 250) return true;
+    return false;
+  }
+  function canvasBlob(c) {
+    const alpha = hasAlpha(c);
+    return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(), alpha ? 'image/png' : 'image/jpeg', 0.92));
+  }
+  const blobToDataURL = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+  const dataURLToBlob = u => fetch(u).then(r => r.blob()).catch(() => {
+    const [h, d] = u.split(','), bin = atob(d), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return new Blob([a], { type: (h.match(/data:([^;]+)/) || [])[1] || 'image/png' });
+  });
+
+  const META_KEYS = ['id', 'name'].concat(Object.keys(LAYER_DEFAULTS));
+  const layerMeta = L => { const m = {}; META_KEYS.forEach(k => m[k] = L[k]); return m; };
+  function workSnapshot() {
+    return {
+      v: 1, textVisible: TEXT_LAYER.visible,
+      order: layers.map(l => l.type === 'text' ? 'text' : l.id),
+      layers: layers.filter(l => l.type === 'image').map(layerMeta),
+    };
+  }
+  // rebuild layer objects from metas + a function that returns each image blob
+  async function buildLayers(snap, getBlob, idPrefix) {
+    const out = [];
+    for (const key of snap.order) {
+      if (key === 'text') { out.push(TEXT_LAYER); continue; }
+      const m = snap.layers.find(x => x.id === key); if (!m) continue;
+      const blob = await getBlob(key); if (!blob) continue;
+      try {
+        const { src, thumb } = await loadImageFile(blob);
+        out.push(Object.assign({}, LAYER_DEFAULTS, m, {
+          id: idPrefix ? 'L' + (nextId++) : m.id, type: 'image', src, thumb, proc: null, procKey: '',
+        }));
+      } catch (e) {}
+    }
+    if (!out.includes(TEXT_LAYER)) out.push(TEXT_LAYER);
+    return out;
+  }
+  function fixNextId() {
+    layers.forEach(l => { const n = parseInt(String(l.id).slice(1), 10); if (n >= nextId) nextId = n + 1; });
+  }
+
+  let saveT = 0, lastSaved = null, restoring = true;
+  function saveWorkSoon() {
+    if (restoring) return;
+    clearTimeout(saveT);
+    saveT = setTimeout(async () => {
+      try {
+        await store.set('work:meta', workSnapshot());
+        lastSaved = new Date(); setStatus(true);
+      } catch (e) { setStatus(false); }
+    }, 700);
+  }
+  function setStatus(ok) {
+    const el = $('saveStatus'); if (!el) return;
+    el.classList.toggle('off', !ok);
+    el.querySelector('span').textContent = ok
+      ? '自動保存：オン' + (lastSaved ? `（最終 ${lastSaved.getHours()}:${String(lastSaved.getMinutes()).padStart(2, '0')}）` : '')
+      : 'この環境では端末に保存できません（バックアップの書き出しは使えます）';
+  }
+  async function restoreWork() {
+    try {
+      const snap = await store.get('work:meta');
+      setStatus(true);
+      if (!snap || !snap.order) return;
+      TEXT_LAYER.visible = snap.textVisible !== false;
+      const ls = await buildLayers(snap, id => store.get('work:img:' + id), false);
+      layers = ls; fixNextId();
+      if (ls.some(l => l.type === 'image')) flash('前回の作業を復元しました');
+    } catch (e) { setStatus(false); }
+  }
+  async function replaceWorkImages(newLayers) {
+    // drop stored images of the current work, store the new ones
+    for (const l of layers) if (l.type === 'image') store.del('work:img:' + l.id);
+    layers = newLayers; selected = null;
+    for (const l of layers) if (l.type === 'image') await store.putImage('work:img:' + l.id, l.src);
+    renderLayerList(); syncEditor(); schedule();
+  }
+
+  // ---- two-tap confirm for destructive buttons ----
+  function armed(btn, label, fn) {
+    if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; fn(); return; }
+    btn.dataset.orig = btn.textContent; btn.dataset.armed = '1'; btn.textContent = label;
+    setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; } }, 3500);
+  }
+  $('clearWork').onclick = e => armed(e.currentTarget, 'もう一度押すと画像をすべて外します', async () => {
+    TEXT_LAYER.visible = true;
+    await replaceWorkImages([TEXT_LAYER]);
+    flash('新しく作り直しました');
+  });
+
+  // ---- my presets ----
+  let presets = [];   // [{id, name, at, text, img, thumb}]
+  async function loadPresetIndex() {
+    try { presets = (await store.get('presets:index')) || []; } catch (e) { presets = []; }
+    renderPresets();
+  }
+  const savePresetIndex = () => store.set('presets:index', presets);
+  function previewThumb() {
+    draw(true);
+    const t = document.createElement('canvas'); t.width = 320; t.height = 180;
+    t.getContext('2d').drawImage(cv, 0, 0, 320, 180);
+    draw();
+    return t.toDataURL('image/jpeg', 0.75);
+  }
+  const TEXT_KEYS = ['t1', 't2', 't3', 't4'];
+  async function writePreset(id, name, withText, withImg) {
+    const settings = collectSettings();
+    if (!withText) TEXT_KEYS.forEach(k => delete settings[k]);
+    const data = { settings, lines: withText ? JSON.parse(JSON.stringify(lines)) : null, work: null };
+    // remove old images of this preset (when overwriting)
+    const keys = await store.keys().catch(() => []);
+    for (const k of keys) if (String(k).startsWith('preset:' + id + ':img:')) await store.del(k);
+    if (withImg) {
+      data.work = workSnapshot();
+      for (const l of layers) if (l.type === 'image') await store.putImage(`preset:${id}:img:${l.id}`, l.src);
+    }
+    await store.set('preset:' + id, data);
+    const entry = { id, name, at: Date.now(), text: withText, img: withImg, thumb: previewThumb() };
+    const i = presets.findIndex(p => p.id === id);
+    if (i >= 0) presets[i] = entry; else presets.unshift(entry);
+    await savePresetIndex();
+    renderPresets();
+  }
+  async function usePreset(p) {
+    const data = await store.get('preset:' + p.id);
+    if (!data) { flash('このプリセットのデータが見つかりません'); return; }
+    applySettings(data.settings);
+    if (data.lines) { lines = data.lines.map(l => Object.assign({}, l)); saveLines(); renderLines(); }
+    syncMode(); updateOutputs(); save();
+    if (data.work) {
+      flash('画像を読み込み中…');
+      const ls = await buildLayers(data.work, id => store.get(`preset:${p.id}:img:${id}`), true);
+      TEXT_LAYER.visible = data.work.textVisible !== false;
+      await replaceWorkImages(ls);
+    }
+    render();
+    flash(`「${p.name}」を適用しました`);
+  }
+  async function deletePreset(p) {
+    const keys = await store.keys().catch(() => []);
+    for (const k of keys) if (String(k).startsWith('preset:' + p.id)) await store.del(k);
+    presets = presets.filter(x => x.id !== p.id);
+    await savePresetIndex(); renderPresets();
+  }
+  function renderPresets() {
+    const box = $('pList'); box.innerHTML = '';
+    if (!presets.length) { box.innerHTML = '<div class="empty">まだ保存したプリセットはありません。</div>'; return; }
+    presets.forEach(p => {
+      const d = document.createElement('div'); d.className = 'pitem';
+      const tags = ['デザイン'].concat(p.text ? ['文字'] : [], p.img ? ['画像'] : []).join('・');
+      const dt = new Date(p.at);
+      d.innerHTML = `<img alt=""><div style="min-width:0"><div class="pn"></div>
+        <div class="pm">${tags}　${dt.getMonth() + 1}/${dt.getDate()}</div>
+        <div class="pb"><button class="use">使う</button><button class="ow">上書き</button><button class="danger del">削除</button></div></div>`;
+      d.querySelector('img').src = p.thumb || '';
+      d.querySelector('.pn').textContent = p.name;
+      d.querySelector('.use').onclick = () => usePreset(p).catch(() => flash('適用できませんでした'));
+      d.querySelector('.ow').onclick = e => armed(e.currentTarget, 'もう一度で上書き', () =>
+        writePreset(p.id, p.name, p.text, p.img).then(() => flash('上書きしました')).catch(() => flash('保存できませんでした')));
+      d.querySelector('.del').onclick = e => armed(e.currentTarget, 'もう一度で削除', () => deletePreset(p));
+      box.appendChild(d);
+    });
+  }
+  $('pSave').onclick = async () => {
+    const name = $('pName').value.trim() || `プリセット ${presets.length + 1}`;
+    $('pSave').disabled = true;
+    try {
+      await writePreset('P' + Date.now().toString(36), name, $('pText').checked, $('pImg').checked);
+      $('pName').value = ''; flash(`「${name}」を保存しました`);
+    } catch (e) { flash('保存できませんでした（端末の保存領域が使えない可能性があります）'); }
+    $('pSave').disabled = false;
+  };
+
+  // ---- backup file ----
+  async function makeBackup() {
+    const imgs = {};
+    for (const l of layers) if (l.type === 'image') imgs[l.id] = await blobToDataURL(await canvasBlob(l.src));
+    const ps = [];
+    for (const p of presets) {
+      const data = await store.get('preset:' + p.id).catch(() => null); if (!data) continue;
+      const pimgs = {};
+      if (data.work) for (const m of data.work.layers) {
+        const b = await store.get(`preset:${p.id}:img:${m.id}`).catch(() => null);
+        if (b) pimgs[m.id] = await blobToDataURL(b);
+      }
+      ps.push({ entry: p, data, images: pimgs });
+    }
+    return JSON.stringify({ app: 'thumbMaker', v: 1, at: new Date().toISOString(),
+      settings: collectSettings(), lines, work: workSnapshot(), images: imgs, presets: ps });
+  }
+  $('bkOut').onclick = async () => {
+    flash('バックアップを作成中…');
+    try {
+      const json = await makeBackup();
+      const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      const name = `thumbnail-backup_${stamp}.json`;
+      if (downloads) await downloads.save({ filename: name, data: json });
+      else if (!browserDownload(json, name, 'application/json')) throw 0;
+      flash('バックアップを書き出しました');
+    } catch (e) { flash(e && e.code === 'declined' ? 'キャンセルしました' : 'バックアップを書き出せませんでした'); }
+  };
+  $('bkIn').onclick = () => $('bkFile').click();
+  $('bkFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const b = JSON.parse(await f.text());
+      if (b.app !== 'thumbMaker') throw 0;
+      flash('バックアップを読み込み中…');
+      applySettings(b.settings || {});
+      if (Array.isArray(b.lines)) { lines = b.lines; saveLines(); renderLines(); }
+      syncMode(); updateOutputs(); save();
+      if (b.work) {
+        TEXT_LAYER.visible = b.work.textVisible !== false;
+        const ls = await buildLayers(b.work, async id => b.images && b.images[id] ? dataURLToBlob(b.images[id]) : null, true);
+        await replaceWorkImages(ls);
+      }
+      // presets are merged (never overwrite existing ones)
+      let added = 0;
+      for (const item of b.presets || []) {
+        const id = 'P' + Date.now().toString(36) + (added++);
+        for (const [lid, url] of Object.entries(item.images || {})) await store.set(`preset:${id}:img:${lid}`, await dataURLToBlob(url));
+        await store.set('preset:' + id, item.data);
+        presets.push(Object.assign({}, item.entry, { id }));
+      }
+      if (added) await savePresetIndex();
+      renderPresets(); render();
+      flash(`バックアップを読み込みました${added ? `（プリセット${added}件を追加）` : ''}`);
+    } catch (err) { flash('このファイルは読み込めませんでした'); }
+  });
+
+  load(); loadLines(); syncMode(); renderLines(); renderLayerList(); syncEditor(); updateOutputs(); render();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
+  restoreWork().then(() => {
+    restoring = false;
+    renderLayerList(); syncEditor(); schedule();
+  });
+  loadPresetIndex();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+})();
+</script>
+</body>
+</html>
