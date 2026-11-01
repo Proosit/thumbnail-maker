@@ -207,6 +207,7 @@
   </div>
 </div>
 <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2,font/*">
+<input type="file" id="texFile" accept="image/*">
 
 <script>
 (() => {
@@ -287,7 +288,8 @@
   const TEXT_STYLE_DEFAULTS = () => ({
     st:{ font:'noto', weight:'900', track:-0.02, fill:'#ffffff', grad:false, fill2:'#ffb300',
          s1c:'#000000', s1w:0, s2c:'#ffffff', s2w:0, sh:false, shc:'#000000', sho:0.85, shb:8, shx:6, shy:6,
-         tex:'none', texAmt:0.55, texTarget:'all' },
+         tex:'none', texTarget:'all' },
+    tx: TX_DEFAULTS(),
     acc:{ color:'#ffd400' },
     box:{ on:false, target:'acc', type:'fill', color:'#ffffff', pad:0.07, r:0, lw:8, sh:false, shc:'#000000', shb:24, shd:10 },
   });
@@ -298,6 +300,7 @@
       lines:[{ t:'テキスト', size:140, dx:0 }], align:'center', lh:1.02, small:0.78, tiny:0.45,
     }, TEXT_STYLE_DEFAULTS(), clone(over || {}), { id:newId() });
   }
+  const newTextN = over => normTex(newText(over));
   let tree = [];
   // the always-present top group: its effects apply to the whole picture
   const ROOT = Object.assign({ id:'root', type:'group', root:true, name:'全体', visible:true, open:true }, fx());
@@ -355,34 +358,6 @@
     }
     return out;
   }
-  const METALS = {
-    gold:   [[0,'#fff7d1'],[0.3,'#f2cd63'],[0.48,'#9a6a17'],[0.55,'#c99430'],[0.72,'#ffe8a0'],[1,'#a8761f']],
-    silver: [[0,'#ffffff'],[0.3,'#dcdcdc'],[0.48,'#6f6f6f'],[0.55,'#9d9d9d'],[0.72,'#f2f2f2'],[1,'#7d7d7d']],
-  };
-  let grungeC = null;
-  function grungeTile() {
-    if (grungeC) return grungeC;
-    const N = 512, c = document.createElement('canvas'); c.width = c.height = N;
-    const g = c.getContext('2d');
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 40; i++) {
-      const x = rnd() * N, y = rnd() * N, r = 10 + rnd() * 45;
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, `rgba(0,0,0,${0.25 + rnd() * 0.45})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-    for (let i = 0; i < 3800; i++) {
-      g.fillStyle = `rgba(0,0,0,${0.5 + rnd() * 0.5})`;
-      g.beginPath(); g.arc(rnd() * N, rnd() * N, 0.4 + rnd() * rnd() * 3.2, 0, Math.PI * 2); g.fill();
-    }
-    g.lineCap = 'round';
-    for (let i = 0; i < 90; i++) {
-      const x = rnd() * N, y = rnd() * N, a = (rnd() - 0.5) * 1.2 + (rnd() < 0.5 ? 0 : Math.PI / 2), l = 8 + rnd() * 50;
-      g.strokeStyle = `rgba(0,0,0,${0.4 + rnd() * 0.6})`; g.lineWidth = 0.6 + rnd() * 1.8;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
-    }
-    grungeC = c; return c;
-  }
   function roundRect(g, x, y, w, h, r) {
     r = Math.max(0, Math.min(r, w / 2, h / 2));
     g.beginPath();
@@ -391,10 +366,222 @@
   }
   const measureC = document.createElement('canvas').getContext('2d');
 
+
+  // =====================================================================
+  // text textures
+  // =====================================================================
+  const TX_DEFAULTS = () => ({
+    amt:0.55, size:1, shape:'dots', seed:1,                       // かすれ
+    dir:0, width:1,                                               // 筆・ストライプ・網点の角度
+    chip:1, rough:4, rust:true,                                   // 錆
+    metal:'gold', mc1:'#fff3c4', mc2:'#5a3a08', shine:0.5, refl:0.8,  // 金属
+    gloss:0.7, range:0.45,                                        // 光沢
+    depth:6, light:225, mode:'emboss',                            // 立体
+    dot:10, c2:'#000000',                                         // 網点・ストライプ
+    imgId:'', scale:1, ox:0, oy:0,                                // 画像で塗る
+  });
+  const TEX_TYPES = [['none', 'なし（ベタ塗り）'], ['grunge', 'かすれ'], ['brush', '筆のかすれ'], ['rust', '錆・ダメージ'], ['metal', '金属'],
+    ['gloss', '光沢'], ['bevel', '立体（浮き出し・彫り込み）'], ['halftone', '網点'], ['stripe', 'ストライプ'], ['image', '画像で塗る']];
+  const TEX_AMT = { grunge: 0.55, brush: 0.6, rust: 0.6, bevel: 0.9, halftone: 0.6, stripe: 0.8, image: 1 };
+  // bring older text layers (gold / silver / texAmt) to the current shape
+  function normTex(T) {
+    T.tx = Object.assign(TX_DEFAULTS(), T.tx || {});
+    if (T.st.tex === 'gold' || T.st.tex === 'silver') { T.tx.metal = T.st.tex; T.st.tex = 'metal'; }
+    if ('texAmt' in T.st) { if (T.st.texAmt != null) T.tx.amt = +T.st.texAmt; delete T.st.texAmt; }
+    if (!T.st.tex) T.st.tex = 'none';
+    return T;
+  }
+  const rng = seed => { let x = (Math.floor(seed * 9973) % 2147483646) + 1; return () => (x = (x * 16807) % 2147483647) / 2147483647; };
+  const tileCache = {};
+  function makeTile(key, size, fn) {
+    if (tileCache[key]) return tileCache[key];
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    fn(c.getContext('2d'), size); tileCache[key] = c; return c;
+  }
+  function grungeTile(shape = 'dots', seed = 1) {
+    return makeTile(`g${shape}${seed}`, 512, (g, N) => {
+      const R = rng(seed + 7);
+      const blot = (n, r0, r1, a0, a1) => { for (let i = 0; i < n; i++) {
+        const x = R() * N, y = R() * N, r = r0 + R() * (r1 - r0);
+        const gr = g.createRadialGradient(x, y, 0, x, y, r);
+        gr.addColorStop(0, `rgba(0,0,0,${a0 + R() * (a1 - a0)})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+      } };
+      const specks = (n, rmax) => { for (let i = 0; i < n; i++) {
+        g.fillStyle = `rgba(0,0,0,${0.5 + R() * 0.5})`;
+        g.beginPath(); g.arc(R() * N, R() * N, 0.4 + R() * R() * rmax, 0, Math.PI * 2); g.fill();
+      } };
+      const scratches = (n, l0, l1, w0, w1) => { g.lineCap = 'round'; for (let i = 0; i < n; i++) {
+        const x = R() * N, y = R() * N, a = (R() - 0.5) * 1.2 + (R() < 0.5 ? 0 : Math.PI / 2), l = l0 + R() * (l1 - l0);
+        g.strokeStyle = `rgba(0,0,0,${0.4 + R() * 0.6})`; g.lineWidth = w0 + R() * (w1 - w0);
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+      } };
+      if (shape === 'dots') { blot(40, 10, 55, 0.25, 0.7); specks(3800, 3.2); scratches(60, 8, 50, 0.6, 2.4); }
+      else if (shape === 'streaks') { specks(700, 2); scratches(260, 20, 140, 0.6, 2.6); }
+      else { blot(90, 18, 70, 0.35, 0.85); specks(900, 2.5); }
+    });
+  }
+  function brushTile(seed = 1) {
+    return makeTile(`b${seed}`, 512, (g, N) => {
+      const R = rng(seed + 31);
+      for (let i = 0; i < 150; i++) {
+        const y = R() * N, th = 0.6 + R() * R() * 5;
+        let x = R() * N;
+        const segs = 1 + Math.floor(R() * 3);
+        for (let k = 0; k < segs; k++) {
+          const len = 40 + R() * 300;
+          g.strokeStyle = `rgba(0,0,0,${0.35 + R() * 0.65})`; g.lineWidth = th; g.lineCap = 'round';
+          for (const off of [0, -N, N]) { g.beginPath(); g.moveTo(x + off, y); g.lineTo(x + len + off, y + (R() - 0.5) * 2); g.stroke(); }
+          x += len + 20 + R() * 120;
+        }
+      }
+    });
+  }
+  function chipTile(seed = 1) {
+    return makeTile(`c${seed}`, 512, (g, N) => {
+      const R = rng(seed + 53);
+      for (let i = 0; i < 70; i++) {
+        const cx = R() * N, cy = R() * N, r = 3 + R() * R() * 22, k = 6 + Math.floor(R() * 5);
+        g.fillStyle = `rgba(0,0,0,${0.7 + R() * 0.3})`; g.beginPath();
+        for (let j = 0; j < k; j++) { const a = j / k * Math.PI * 2, rr = r * (0.45 + R() * 0.75); g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+        g.closePath(); g.fill();
+      }
+    });
+  }
+  const colorTile = (key, base, color) => makeTile(key + color, base.width, (g, N) => {
+    g.drawImage(base, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = color; g.fillRect(0, 0, N, N);
+  });
+  const dotTile = color => makeTile('d' + color, 32, (g, N) => {
+    g.fillStyle = color; const r = N * 0.3;
+    [[N / 2, N / 2], [0, 0], [N, 0], [0, N], [N, N]].forEach(([x, y]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); });
+  });
+  const stripeTile = color => makeTile('s' + color, 32, (g, N) => { g.fillStyle = color; g.fillRect(0, 0, N, N / 2); });
+  function patternOf(g, tileC, scale, angle = 0) {
+    const p = g.createPattern(tileC, 'repeat');
+    if (p.setTransform) p.setTransform(new DOMMatrix().rotateSelf(angle).scaleSelf(scale));
+    return p;
+  }
+  const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const mix = (a, b, t) => { const A = hexToRgb(a), B = hexToRgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+  const METAL_SETS = { gold: ['#fff7d1', '#e9bf55', '#7a520f'], silver: ['#ffffff', '#cfcfcf', '#575757'], copper: ['#ffe0cc', '#d0794a', '#5e2a10'] };
+  function metalGrad(g, tx, y, px) {
+    const [hi, mid, lo] = tx.metal === 'custom' ? [tx.mc1, mix(tx.mc1, tx.mc2, 0.5), tx.mc2] : METAL_SETS[tx.metal] || METAL_SETS.gold;
+    const sh = Math.min(0.85, Math.max(0.15, tx.shine)), r = tx.refl;
+    const hi2 = mix(mid, hi, r), lo2 = mix(mid, lo, r);
+    const gr = g.createLinearGradient(0, y - px * 0.9, 0, y + px * 0.12);
+    gr.addColorStop(0, hi2); gr.addColorStop(sh * 0.7, mid); gr.addColorStop(sh, lo2);
+    gr.addColorStop(Math.min(0.97, sh + 0.05), mid); gr.addColorStop(Math.min(0.98, sh + 0.25), hi2); gr.addColorStop(1, mix(mid, lo, r * 0.8));
+    return gr;
+  }
+  const whiteMask = c => {
+    const m = document.createElement('canvas'); m.width = c.width; m.height = c.height;
+    const g = m.getContext('2d'); g.drawImage(c, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#fff'; g.fillRect(0, 0, m.width, m.height);
+    return m;
+  };
+  // erode the outline with smooth noise (damaged edges)
+  function roughen(t, r, seed) {
+    if (r <= 0) return;
+    const w = t.width, h = t.height, g = t.getContext('2d');
+    const mb = blurCanvas(whiteMask(t), r * 0.6);
+    const cell = Math.max(2, r * 1.3), nw = Math.ceil(w / cell) + 2, nh = Math.ceil(h / cell) + 2;
+    const n = document.createElement('canvas'); n.width = nw; n.height = nh;
+    const ng = n.getContext('2d'), nd = ng.createImageData(nw, nh), R = rng(seed + 97);
+    for (let i = 0; i < nd.data.length; i += 4) { nd.data[i] = R() * 255; nd.data[i + 3] = 255; }
+    ng.putImageData(nd, 0, 0);
+    const N = document.createElement('canvas'); N.width = w; N.height = h;
+    const Ng = N.getContext('2d'); Ng.imageSmoothingQuality = 'high'; Ng.drawImage(n, 0, 0, nw * cell, nh * cell);
+    const A = mb.getContext('2d').getImageData(0, 0, w, h).data, Nd = Ng.getImageData(0, 0, w, h).data, td = g.getImageData(0, 0, w, h);
+    for (let i = 3; i < A.length; i += 4) {
+      if (!td.data[i]) continue;
+      const v = A[i] / 255 + (Nd[i - 3] / 255 - 0.5) * 0.9;
+      const a = Math.max(0, Math.min(1, (v - 0.42) * 7));
+      td.data[i] = Math.min(td.data[i], a * 255);
+    }
+    g.putImageData(td, 0, 0);
+  }
+  function bevel(t, depth, light, mode, amt) {
+    const Ab = blurCanvas(whiteMask(t), Math.max(1, depth * 0.6));
+    let a = light * Math.PI / 180; if (mode === 'engrave') a += Math.PI;
+    const lx = Math.cos(a) * depth, ly = Math.sin(a) * depth;
+    const rim = (dx, dy, color) => {
+      const c = document.createElement('canvas'); c.width = t.width; c.height = t.height;
+      const g = c.getContext('2d'); g.drawImage(Ab, 0, 0);
+      g.globalCompositeOperation = 'destination-out'; g.drawImage(Ab, dx, dy);
+      g.globalCompositeOperation = 'source-in'; g.fillStyle = color; g.fillRect(0, 0, c.width, c.height);
+      return c;
+    };
+    const tg = t.getContext('2d');
+    tg.save(); tg.globalCompositeOperation = 'source-atop';
+    tg.globalAlpha = Math.min(1, amt * 0.95); tg.drawImage(rim(-lx, -ly, '#ffffff'), 0, 0);
+    tg.globalAlpha = Math.min(1, amt * 0.8); tg.drawImage(rim(lx, ly, '#000000'), 0, 0);
+    tg.restore();
+  }
+  // images used for "画像で塗る" (kept on this device under teximg:<id>)
+  const texImgs = {}, texLoading = {};
+  let texGen = 0;
+  function ensureTexImg(id) {
+    if (!id || texImgs[id] || texLoading[id]) return;
+    texLoading[id] = true;
+    store.get('teximg:' + id).then(b => b && loadImageFile(b)).then(r => {
+      if (r) { texImgs[id] = r.src; texGen++; schedule(); }
+    }).catch(() => {}).finally(() => { delete texLoading[id]; });
+  }
+  // draw the textured glyphs (items) onto t, then apply the texture
+  function paintTextured(t, items, T, s, fstr, fillFor) {
+    const S = T.st, tx = T.tx, tg = t.getContext('2d');
+    tg.textBaseline = 'alphabetic';
+    items.forEach(({ it, x, y }) => {
+      tg.font = fstr(it.px);
+      tg.fillStyle = S.tex === 'metal' ? metalGrad(tg, tx, y, it.px) : fillFor(it, y);
+      tg.fillText(it.ch, x, y);
+    });
+    const erase = (tileC, scale, angle, amt) => {
+      tg.save(); tg.globalCompositeOperation = 'destination-out';
+      tg.fillStyle = patternOf(tg, tileC, scale, angle);
+      tg.globalAlpha = Math.min(1, amt); tg.fillRect(0, 0, t.width, t.height);
+      if (amt > 0.6) { tg.globalAlpha = Math.min(1, (amt - 0.6) * 2); tg.fillRect(0, 0, t.width, t.height); }
+      tg.restore();
+    };
+    const over = (fillStyle, amt) => {
+      tg.save(); tg.globalCompositeOperation = 'source-atop'; tg.globalAlpha = Math.min(1, amt);
+      tg.fillStyle = fillStyle; tg.fillRect(0, 0, t.width, t.height); tg.restore();
+    };
+    switch (S.tex) {
+      case 'grunge': erase(grungeTile(tx.shape, tx.seed), tx.size * s, 0, tx.amt); break;
+      case 'brush': erase(brushTile(tx.seed), tx.width * s, tx.dir, tx.amt); break;
+      case 'rust':
+        roughen(t, tx.rough * s, tx.seed);
+        erase(chipTile(tx.seed), tx.chip * s, 0, tx.amt);
+        if (tx.rust) over(patternOf(tg, colorTile('rust' + tx.seed, grungeTile('patches', tx.seed + 3), '#7a3410'), 1.4 * s), tx.amt * 0.85);
+        break;
+      case 'gloss':
+        tg.save(); tg.globalCompositeOperation = 'source-atop';
+        items.forEach(({ it, x, y }) => {
+          const top = y - it.px * 0.9, gr = tg.createLinearGradient(0, top, 0, top + it.px * tx.range);
+          gr.addColorStop(0, `rgba(255,255,255,${tx.gloss})`); gr.addColorStop(0.85, `rgba(255,255,255,${tx.gloss * 0.35})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+          tg.fillStyle = gr; tg.fillRect(x - 4, top - 4, it.w + 8, it.px * tx.range + 4);
+        });
+        tg.restore(); break;
+      case 'bevel': bevel(t, tx.depth * s, tx.light, tx.mode, tx.amt); break;
+      case 'halftone': over(patternOf(tg, dotTile(tx.c2), tx.dot / 16 * s, tx.dir), tx.amt); break;
+      case 'stripe': over(patternOf(tg, stripeTile(tx.c2), tx.width * 0.5 * s, tx.dir), tx.amt); break;
+      case 'image': {
+        const img = texImgs[tx.imgId]; if (!img) { ensureTexImg(tx.imgId); break; }
+        const x0 = Math.min(...items.map(i => i.x)), x1 = Math.max(...items.map(i => i.x + i.it.w));
+        const y0 = Math.min(...items.map(i => i.y - i.it.px * 0.9)), y1 = Math.max(...items.map(i => i.y + i.it.px * 0.12));
+        const bw = x1 - x0, bh = y1 - y0, k = Math.max(bw / img.width, bh / img.height) * tx.scale;
+        const iw = img.width * k, ih = img.height * k;
+        tg.save(); tg.globalCompositeOperation = 'source-atop'; tg.globalAlpha = Math.min(1, tx.amt);
+        tg.drawImage(img, x0 + (bw - iw) / 2 + tx.ox * bw / 2, y0 + (bh - ih) / 2 + tx.oy * bh / 2, iw, ih);
+        tg.restore(); break;
+      }
+    }
+  }
+
   // Render text node T at scale s. Returns {c, ox, oy, bw, bh}: (ox,oy) = top-left of the text block inside c.
   function renderText(T) {
     const s = Math.max(0.05, Math.round(T.scale * 100) / 100);
-    const key = JSON.stringify([T.lines, T.align, T.lh, T.small, T.tiny, T.st, T.acc, T.box, s, fontGen]);
+    const key = JSON.stringify([T.lines, T.align, T.lh, T.small, T.tiny, T.st, T.acc, T.box, T.tx, s, fontGen, T.st.tex === 'image' ? texGen : 0]);
     if (T._r && T._key === key) return T._r;
     const S = T.st, B = T.box, css = fontById(S.font).css;
     const fstr = px => `${S.weight} ${px}px ${css}, ${FALLBACK}`;
@@ -484,10 +671,6 @@
       const gr = g.createLinearGradient(0, y - it.px * 0.88, 0, y + it.px * 0.1);
       gr.addColorStop(0, S.fill); gr.addColorStop(1, S.fill2); return gr;
     };
-    const metal = (kind, y, px) => {
-      const gr = g.createLinearGradient(0, y - px * 0.9, 0, y + px * 0.12);
-      METALS[kind].forEach(([o, col]) => gr.addColorStop(o, col)); return gr;
-    };
     const s1 = S.s1w * s, outer = S.s2w > 0 ? (S.s1w + S.s2w) * s : 0;
     if (S.sh) {
       const OFF = 30000;
@@ -504,17 +687,13 @@
     if (outer) all.forEach(({ it, x, y }) => { g.font = fstr(it.px); g.lineWidth = outer * 2; g.strokeStyle = S.s2c; g.strokeText(it.ch, x, y); });
     if (s1) all.forEach(({ it, x, y }) => { g.font = fstr(it.px); g.lineWidth = s1 * 2; g.strokeStyle = S.s1c; g.strokeText(it.ch, x, y); });
     all.forEach(({ it, x, y }) => {
-      if (texOn(it) && S.tex === 'grunge') return;
-      g.font = fstr(it.px);
-      g.fillStyle = texOn(it) ? metal(S.tex, y, it.px) : fillFor(it, y);
-      g.fillText(it.ch, x, y);
+      if (texOn(it)) return;
+      g.font = fstr(it.px); g.fillStyle = fillFor(it, y); g.fillText(it.ch, x, y);
     });
-    if (S.tex === 'grunge' && all.some(a => texOn(a.it))) {
+    const texd = all.filter(a => texOn(a.it));
+    if (texd.length) {
       const t = document.createElement('canvas'); t.width = c.width; t.height = c.height;
-      const tg = t.getContext('2d'); tg.textBaseline = 'alphabetic';
-      all.forEach(({ it, x, y }) => { if (!texOn(it)) return; tg.font = fstr(it.px); tg.fillStyle = fillFor(it, y); tg.fillText(it.ch, x, y); });
-      tg.globalCompositeOperation = 'destination-out'; tg.globalAlpha = S.texAmt;
-      tg.fillStyle = tg.createPattern(grungeTile(), 'repeat'); tg.fillRect(0, 0, t.width, t.height);
+      paintTextured(t, texd, T, s, fstr, fillFor);
       g.drawImage(t, 0, 0);
     }
     T._r = { c, ox: M, oy: M, bw, bh }; T._key = key;
@@ -850,12 +1029,20 @@
     { name:'マーカー', v:{ acc:{ color:'#ffffff' }, box:{ on:true, target:'acc', type:'marker', color:'#e63946' } } },
     { name:'影つき白文字', v:{ st:{ sh:true, shb:10, shx:6, shy:6 }, acc:{ color:'#ffd400' } } },
     { name:'黄色・縁取り', v:{ st:{ fill:'#ffe14d', s1c:'#000000', s1w:10, s2c:'#ffffff', s2w:8, sh:true, shb:16, shx:8, shy:10, sho:0.9 }, acc:{ color:'#ff3b30' } } },
-    { name:'赤かすれ（ダーク）', v:{ st:{ font:'tokumin', weight:'800', fill:'#f2f2f2', tex:'grunge', texTarget:'acc', texAmt:0.6, sh:true, shc:'#000000', sho:0.9, shb:18, shx:0, shy:6 }, acc:{ color:'#c8161d' } } },
-    { name:'金の見出し（ダーク）', v:{ st:{ font:'tokumin', weight:'800', fill:'#f2f2f2', tex:'gold', texTarget:'acc', sh:true, shc:'#000000', sho:0.95, shb:22, shx:0, shy:8 }, acc:{ color:'#e8c15a' } } },
+    { name:'赤かすれ（ダーク）', v:{ st:{ font:'tokumin', weight:'800', fill:'#f2f2f2', tex:'grunge', texTarget:'acc', sh:true, shc:'#000000', sho:0.9, shb:18, shx:0, shy:6 }, acc:{ color:'#c8161d' }, tx:{ amt:0.6 } } },
+    { name:'錆びた赤（ダーク）', v:{ st:{ font:'tokumin', weight:'800', fill:'#f2f2f2', tex:'rust', texTarget:'acc', sh:true, shc:'#000000', sho:0.9, shb:18, shx:0, shy:6 }, acc:{ color:'#b3221a' }, tx:{ amt:0.6, chip:1, rough:5, rust:true } } },
+    { name:'筆のかすれ', v:{ st:{ font:'tokumin', weight:'800', fill:'#ffffff', tex:'brush', texTarget:'all', sh:true, shb:14, shx:0, shy:6 }, acc:{ color:'#e8463a' }, tx:{ amt:0.6, width:1.2, dir:-4 } } },
+    { name:'金の見出し（ダーク）', v:{ tx:{ metal:'gold' }, st:{ font:'tokumin', weight:'800', fill:'#f2f2f2', tex:'metal', texTarget:'acc', sh:true, shc:'#000000', sho:0.95, shb:22, shx:0, shy:8 }, acc:{ color:'#e8c15a' } } },
     { name:'紺の明朝（明るい背景）', v:{ st:{ font:'tokumin', weight:'800', fill:'#0d1b3d', sh:true, shc:'#ffffff', sho:0.95, shb:30, shx:0, shy:0 }, acc:{ color:'#0d1b3d' } } },
     { name:'明朝・格調', v:{ st:{ font:'notoserif', weight:'900', track:-0.01 }, acc:{ color:'#d9b56a' } } },
     { name:'ネオン', v:{ st:{ fill:'#ffffff', s1c:'#00e5ff', s1w:4, sh:true, shc:'#00e5ff', sho:1, shb:40, shx:0, shy:0 }, acc:{ color:'#ff7ae9' } } },
     { name:'超極太ポップ', v:{ st:{ font:'dela', weight:'400' }, acc:{ color:'#ff3b30' }, box:{ on:true, target:'acc', type:'fill', color:'#ffffff' } } },
+    { name:'銀の立体', v:{ st:{ font:'dela', weight:'400', fill:'#ffffff', tex:'metal', texTarget:'all', s1c:'#1a1a1a', s1w:4, sh:true, shc:'#000000', sho:0.9, shb:20, shx:0, shy:10 }, acc:{ color:'#ffffff' }, tx:{ metal:'silver', shine:0.52, refl:0.9 } } },
+    { name:'銅の金属', v:{ st:{ font:'notoserif', weight:'900', tex:'metal', texTarget:'all', sh:true, shc:'#000000', sho:0.9, shb:18, shx:0, shy:8 }, acc:{ color:'#ffffff' }, tx:{ metal:'copper' } } },
+    { name:'赤の浮き出し', v:{ st:{ fill:'#e63946', tex:'bevel', texTarget:'all', s1c:'#ffffff', s1w:6, sh:true, shb:14, shx:0, shy:8 }, acc:{ color:'#ffd400' }, tx:{ depth:7, light:225, mode:'emboss', amt:0.9 } } },
+    { name:'光沢ポップ', v:{ st:{ font:'mochiy', weight:'400', fill:'#ff3b30', tex:'gloss', texTarget:'all', s1c:'#ffffff', s1w:8, s2c:'#000000', s2w:4 }, acc:{ color:'#ffd400' }, tx:{ gloss:0.75, range:0.45 } } },
+    { name:'網点アメコミ', v:{ st:{ font:'dela', weight:'400', fill:'#ffd400', tex:'halftone', texTarget:'all', s1c:'#000000', s1w:8 }, acc:{ color:'#ff3b30' }, tx:{ c2:'#ff3b30', dot:9, dir:20, amt:0.55 } } },
+    { name:'赤白ストライプ', v:{ st:{ fill:'#ffffff', tex:'stripe', texTarget:'acc', s1c:'#000000', s1w:6, sh:true, shb:10, shx:4, shy:6 }, acc:{ color:'#ffffff' }, tx:{ c2:'#d61f1f', width:1.6, dir:-45, amt:0.9 } } },
     { name:'筆文字', v:{ st:{ font:'potta', weight:'400', sh:true, shb:12, shx:6, shy:6 }, acc:{ color:'#e8463a' } } },
   ];
   function applyStylePreset(T, v) {
@@ -863,14 +1050,17 @@
     T.st = Object.assign(d.st, v.st || {});
     T.acc = Object.assign(d.acc, v.acc || {});
     T.box = Object.assign(d.box, v.box || {});
+    T.tx = Object.assign(TX_DEFAULTS(), v.tx || {});
+    normTex(T);
   }
   function textFromTemplate(tpl) {
     const n = newText();
     const d = TEXT_STYLE_DEFAULTS(), o = clone(tpl);
     Object.assign(n, o, { id: n.id, type: 'text', visible: true,
-      st: Object.assign(d.st, o.st || {}), acc: Object.assign(d.acc, o.acc || {}), box: Object.assign(d.box, o.box || {}) });
+      st: Object.assign(d.st, o.st || {}), acc: Object.assign(d.acc, o.acc || {}), box: Object.assign(d.box, o.box || {}),
+      tx: Object.assign(TX_DEFAULTS(), o.tx || {}) });
     if (n.x == null) n.x = W * 0.66; if (n.y == null) n.y = H / 2;
-    return n;
+    return normTex(n);
   }
 
   // =====================================================================
@@ -1007,11 +1197,11 @@
   // =====================================================================
   const getP = (o, p) => p.split('.').reduce((a, k) => a == null ? a : a[k], o);
   const setP = (o, p, v) => { const ks = p.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
-  const PCT = /opacity|shOp|tintAmt|dark|texAmt|sho$/;
+  const PCT = /opacity|shOp|tintAmt|dark|sho$|tx\.amt|tx\.gloss|tx\.refl|tx\.shine|tx\.range/;
   function fmtVal(path, v) {
     v = +v;
     if (PCT.test(path) || path === 'box.pad') return Math.round(v * 100) + '%';
-    if (/rot$/.test(path)) return v + '°';
+    if (/rot$|dir$|light$|angle$/.test(path)) return v + '°';
     if (/scale|con|sat|small|tiny|lh/.test(path)) return v.toFixed(2);
     if (/track/.test(path)) return v.toFixed(3);
     return Math.round(v * 100) / 100;
@@ -1186,6 +1376,65 @@
   const BLENDS = [['source-over', '通常'], ['screen', 'スクリーン（明るい所だけ乗る）'], ['multiply', '乗算（暗い所だけ乗る）'],
     ['overlay', 'オーバーレイ'], ['soft-light', 'ソフトライト'], ['lighten', '比較（明）'], ['darken', '比較（暗）']];
 
+
+  // ---- texture settings (fields depend on the chosen texture) ----
+  const TEX_FIELDS = {
+    grunge: [['rng', 'tx.amt', '強さ', 0.05, 1, 0.01], ['rng', 'tx.size', '粒の大きさ', 0.3, 3, 0.05],
+             ['sel', 'tx.shape', 'かすれの形', [['dots', '点（ざらつき）'], ['streaks', '筋（ひっかき傷）'], ['patches', 'ムラ（インクの欠け）']]], ['seed']],
+    brush:  [['rng', 'tx.amt', '強さ', 0.05, 1, 0.01], ['rng', 'tx.dir', '筋の向き', -90, 90, 1], ['rng', 'tx.width', '筋の太さ', 0.3, 3, 0.05], ['seed']],
+    rust:   [['rng', 'tx.amt', '強さ', 0.05, 1, 0.01], ['rng', 'tx.chip', '欠けの大きさ', 0.3, 3, 0.05], ['rng', 'tx.rough', '縁のガタつき', 0, 14, 0.5],
+             ['chk', 'tx.rust', '錆の色をのせる'], ['seed']],
+    metal:  [['sel', 'tx.metal', '金属', [['gold', '金'], ['silver', '銀'], ['copper', '銅'], ['custom', '好きな2色']]],
+             ['col', 'tx.mc1', '明るい色（好きな2色）'], ['col', 'tx.mc2', '暗い色（好きな2色）'],
+             ['rng', 'tx.shine', '光沢の位置', 0.15, 0.85, 0.01], ['rng', 'tx.refl', '反射の強さ', 0, 1, 0.01]],
+    gloss:  [['rng', 'tx.gloss', 'ハイライトの強さ', 0, 1, 0.01], ['rng', 'tx.range', '範囲', 0.1, 0.9, 0.01]],
+    bevel:  [['sel', 'tx.mode', '種類', [['emboss', '浮き出し'], ['engrave', '彫り込み']]], ['rng', 'tx.depth', '深さ', 1, 20, 0.5],
+             ['rng', 'tx.light', '光の向き', 0, 360, 1], ['rng', 'tx.amt', '強さ', 0.1, 1, 0.01]],
+    halftone: [['col', 'tx.c2', '点の色'], ['rng', 'tx.dot', '点の大きさ', 3, 40, 0.5], ['rng', 'tx.dir', '角度', -90, 90, 1], ['rng', 'tx.amt', '濃さ', 0.05, 1, 0.01]],
+    stripe: [['col', 'tx.c2', 'ストライプの色'], ['rng', 'tx.width', '太さ', 0.3, 6, 0.05], ['rng', 'tx.dir', '角度', -90, 90, 1], ['rng', 'tx.amt', '濃さ', 0.05, 1, 0.01]],
+    image:  [['img'], ['rng', 'tx.scale', '拡大', 0.2, 4, 0.01], ['rng', 'tx.ox', '横の位置', -1, 1, 0.01], ['rng', 'tx.oy', '縦の位置', -1, 1, 0.01], ['rng', 'tx.amt', '濃さ', 0.05, 1, 0.01]],
+  };
+  const TEX_HINT = {
+    grunge: '古い印刷のようにインクが欠けた質感です。', brush: '筆でかすれたような筋が入ります。向きで筋の角度を変えられます。',
+    rust: '縁がガタついて欠け、錆びた色がのります。', metal: '縦方向の光沢で金属らしく見せます。',
+    gloss: '文字の上側に光沢を足します。', bevel: '文字を浮き出させたり、彫り込んだりします。光の向きで陰影の方向が変わります。',
+    halftone: '印刷の網点（ドット）を重ねます。', stripe: '斜めの縞模様を重ねます。',
+    image: '好きな写真（錆・大理石・炎・和紙など）で文字を塗ります。',
+  };
+  let texTarget = null;
+  function textureEditor(body, T, changed) {
+    const sec = document.createElement('div'); sec.className = 'sec';
+    sec.innerHTML = '<h3>質感</h3>';
+    const onType = path => {
+      if (path === 'st.tex' && TEX_AMT[T.st.tex] != null) T.tx.amt = TEX_AMT[T.st.tex];
+      if (path === 'st.tex' || path === 'tx.metal') { renderEditor(); render(); }
+      changed();
+    };
+    sec.appendChild(field(['sel', 'st.tex', '', TEX_TYPES], T, onType));
+    if (T.st.tex !== 'none') {
+      sec.appendChild(field(['sel', 'st.texTarget', 'かける対象', [['all', '文字全体'], ['acc', '強調（*で囲んだ文字）だけ']]], T, changed));
+      const h = document.createElement('p'); h.className = 'hint'; h.textContent = TEX_HINT[T.st.tex] || ''; sec.appendChild(h);
+      (TEX_FIELDS[T.st.tex] || []).forEach(d => {
+        if (d[0] === 'seed') {
+          const b = document.createElement('button'); b.textContent = '模様を変える';
+          b.style.cssText = 'margin-top:8px;padding:7px 12px;font-size:12px';
+          b.onclick = () => { T.tx.seed = (T.tx.seed % 97) + 1; changed(); };
+          sec.appendChild(b); return;
+        }
+        if (d[0] === 'img') {
+          const w = document.createElement('div'); w.style.cssText = 'display:flex;gap:10px;align-items:center;margin-top:8px';
+          const im = texImgs[T.tx.imgId];
+          w.innerHTML = `<div style="width:72px;height:44px;border-radius:6px;background:#000 center/cover no-repeat;flex:none"></div><button style="padding:8px 12px;font-size:12px">${im ? '画像を変える' : '塗る画像を選ぶ'}</button>`;
+          if (im) w.firstChild.style.backgroundImage = `url(${im.toDataURL('image/jpeg', 0.6)})`;
+          w.querySelector('button').onclick = () => { texTarget = T; $('texFile').click(); };
+          sec.appendChild(w); return;
+        }
+        if (T.tx.metal !== 'custom' && /tx\.mc[12]/.test(d[1])) return;
+        sec.appendChild(field(d, T, changed));
+      });
+    }
+    body.appendChild(sec);
+  }
   function textEditor(T, changed) {
     const f = fieldset('文字');
     const tabs = document.createElement('div'); tabs.className = 'subtabs';
@@ -1263,11 +1512,7 @@
       fs.appendChild(field(['rng', 'st.track', '字間', -0.12, 0.2, 0.005], T, changed));
       body.appendChild(fs);
       section(body, '色', [['col', 'st.fill', '文字色'], ['chk', 'st.grad', '上から下へグラデーション'], ['col', 'st.fill2', '下の色']], T, changed);
-      section(body, '質感', [
-        ['sel', 'st.tex', '', [['none', 'なし（ベタ塗り）'], ['grunge', 'かすれ（ざらついた印刷風）'], ['gold', '金（金属の光沢）'], ['silver', '銀（金属の光沢）']]],
-        ['sel', 'st.texTarget', 'かける対象', [['all', '文字全体'], ['acc', '強調（*で囲んだ文字）だけ']]],
-        ['rng', 'st.texAmt', 'かすれの強さ', 0.1, 1, 0.01],
-      ], T, changed);
+      textureEditor(body, T, changed);
       section(body, '縁取り', [
         ['col', 'st.s1c', '内側'], ['rng', 'st.s1w', '内側の太さ', 0, 24, 1], ['col', 'st.s2c', '外側'], ['rng', 'st.s2w', '外側の太さ', 0, 24, 1],
       ], T, changed);
@@ -1467,6 +1712,19 @@
     });
   }
 
+  // texture image upload ("画像で塗る")
+  $('texFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f || !texTarget) return;
+    try {
+      const { src } = await loadImageFile(f);
+      const id = 'X' + Date.now().toString(36);
+      texImgs[id] = src; texGen++;
+      texTarget.tx.imgId = id;
+      renderEditor(); schedule();
+      store.set('teximg:' + id, await canvasBlob(src)).catch(() => setStatus(false));
+    } catch (err) { flash('この画像は読み込めませんでした'); }
+  });
+
   // custom font upload (session only)
   let userFontN = 0, fontTarget = null;
   $('fontFile').addEventListener('change', async e => {
@@ -1591,6 +1849,7 @@
         const d = TEXT_STYLE_DEFAULTS();
         const n = Object.assign(newText(), clone(m), { st: Object.assign(d.st, m.st), acc: Object.assign(d.acc, m.acc), box: Object.assign(d.box, m.box) });
         n.id = freshIds ? newId() : m.id;
+        normTex(n); if (n.st.tex === 'image') ensureTexImg(n.tx.imgId);
         out.push(n);
       } else if (m.type === 'fill') {
         out.push(Object.assign({}, FILL_DEFAULTS, m, { id: freshIds ? newId() : m.id }));
@@ -1702,7 +1961,7 @@
       T.x = cx + num(S.fx, 0); T.y = H / 2 + num(S.fy, 0);
     }
     if (!T.lines.length) T.lines = clone(TEXT_TEMPLATES[(S.textMode || 'tpl') === 'tpl' ? 0 : 1].node.lines);
-    return T;
+    return normTex(T);
   }
   // old snapshot {order:[...,'text',...], layers:[metas], textVisible} → node list
   async function migrateV1(snap, S, lines, getBlob, freshIds) {
@@ -1908,7 +2167,16 @@
       }
       ps.push({ entry: p, data, images: pimgs });
     }
-    return JSON.stringify({ app: 'thumbMaker', v: 3, at: new Date().toISOString(), work: snapshot(), images: imgs, presets: ps, templates: myTpls });
+    // images used by "画像で塗る" anywhere (work, presets, templates)
+    const ids = new Set();
+    const scan = list => (list || []).forEach(n => { if (n.type === 'text' && n.tx && n.tx.imgId) ids.add(n.tx.imgId); if (n.children) scan(n.children); });
+    scan(serial(tree)); ps.forEach(x => scan(x.data && x.data.tree)); myTpls.forEach(t => scan([t.node]));
+    const texImages = {};
+    for (const id of ids) {
+      const b = await store.get('teximg:' + id).catch(() => null) || (texImgs[id] ? await canvasBlob(texImgs[id]) : null);
+      if (b) texImages[id] = await blobToDataURL(b);
+    }
+    return JSON.stringify({ app: 'thumbMaker', v: 3, at: new Date().toISOString(), work: snapshot(), images: imgs, presets: ps, templates: myTpls, texImages });
   }
   function browserDownload(data, name, type) {
     try {
@@ -1938,6 +2206,11 @@
       if (b.app !== 'thumbMaker') throw 0;
       flash('バックアップを読み込み中…');
       const getImg = async id => b.images && b.images[id] ? dataURLToBlob(b.images[id]) : null;
+      for (const [id, url] of Object.entries(b.texImages || {})) {
+        const blob = await dataURLToBlob(url); await store.set('teximg:' + id, blob).catch(() => {});
+        try { texImgs[id] = (await loadImageFile(blob)).src; } catch (e) {}
+      }
+      texGen++;
       let nodes;
       if (b.work && b.work.v === 3) { nodes = await deserial(b.work.tree, getImg, true); setRootFx(b.work.root); }
       else if (b.v === 2) nodes = withFin(await deserial(b.work.tree, getImg, true), b.work.fin);
