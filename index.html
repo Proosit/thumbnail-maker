@@ -62,7 +62,7 @@
   .btns button{padding:8px 6px;font-size:12px}
   .page{display:none}
   .page.on{display:block}
-  .maintabs{position:sticky;top:0;z-index:4;background:var(--bg);padding:6px 0;margin:0 0 8px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  .maintabs{position:sticky;top:0;z-index:4;background:var(--bg);padding:6px 0;margin:0 0 8px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
   .maintabs button{padding:10px 4px;font-size:13px;background:#202020;color:#bbb}
   .maintabs button.on{background:#fff;color:#000}
   @media (max-width:900px){.maintabs{position:static}}
@@ -85,7 +85,10 @@
   .tree .vis{padding:7px 9px;font-size:13px;background:#333;flex:none}
   .bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
   .bar button{padding:8px 10px;font-size:12px}
-  .addrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .addrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .tree li.root{background:#2a2412}
+  .tree .th.r{background:#e9c46a;color:#000;font-size:14px}
+  .tree .th.f{font-size:14px;color:#fff}
   .addrow button{padding:12px}
   .empty{color:var(--mute);font-size:13px;padding:10px 4px}
   /* free-layout lines */
@@ -135,7 +138,6 @@
     <div class="maintabs" id="mainTabs">
       <button data-page="layers" class="on">レイヤー</button>
       <button data-page="edit">編集</button>
-      <button data-page="fin">仕上げ</button>
       <button data-page="save">保存</button>
     </div>
 
@@ -146,11 +148,12 @@
         <div class="addrow">
           <button class="primary" id="addImg">＋ 画像</button>
           <button class="primary" id="addText">＋ 文字</button>
+          <button class="primary" id="addFill">＋ 塗り</button>
         </div>
         <input type="file" id="imgFile" accept="image/*" multiple>
         <ul class="tree" id="tree"></ul>
         <div class="bar" id="actBar"></div>
-        <p class="hint">上にあるものほど手前に表示されます。グループに入れたレイヤーは、まとめて動かせます。</p>
+        <p class="hint">上にあるものほど手前に表示されます。グループに入れたレイヤーは、まとめて動かせて、まとめて効果をかけられます。一番上の「全体」に効果をかけると、画面全体にかかります。</p>
       </fieldset>
       <fieldset>
         <legend>文字のテンプレート</legend>
@@ -165,32 +168,12 @@
       <div id="editor"></div>
     </div>
 
-    <!-- ===== 仕上げ ===== -->
-    <div class="page" id="page-fin">
-      <fieldset>
-        <legend>背景色</legend>
-        <p class="hint" style="margin-top:0">画像がない部分に見える色です。</p>
-        <div class="colors">
-          <div>背景色 <input type="color" id="bg_c" data-save value="#000000"></div>
-          <div><label class="check" style="margin:0"><input type="checkbox" id="bg_grad" data-save> グラデーション</label></div>
-          <div>2色目 <input type="color" id="bg_c2" data-save value="#3a0000"></div>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>画面全体の仕上げ</legend>
-        <div class="row"><span>周辺を暗く</span><input type="range" id="vig" data-save min="0" max="1" step="0.01" value="0"><output></output></div>
-        <div class="row"><span>暗くする範囲</span><input type="range" id="vigSize" data-save min="0.2" max="0.9" step="0.01" value="0.55"><output></output></div>
-        <div class="row"><span>粒子感</span><input type="range" id="grain" data-save min="0" max="0.5" step="0.01" value="0"><output></output></div>
-        <p class="hint">「周辺を暗く」は一番後ろの文字レイヤーの下にかかるので、文字は暗くなりません。（次の段階で「全体」グループの効果に置き換わります）</p>
-      </fieldset>
-    </div>
-
     <!-- ===== 保存 ===== -->
     <div class="page" id="page-save">
       <fieldset>
         <legend>作業の自動保存</legend>
         <div class="status" id="saveStatus"><i></i><span>確認中…</span></div>
-        <p class="hint">画像・文字・レイヤー・仕上げは、この端末のブラウザ内に自動で保存され、次に開いたときに続きから始まります。外部には送信されません。</p>
+        <p class="hint">画像・文字・レイヤー・効果は、この端末のブラウザ内に自動で保存され、次に開いたときに続きから始まります。外部には送信されません。</p>
         <button class="danger" id="clearWork" style="margin-top:10px">新しく作り直す（すべてのレイヤーを外す）</button>
       </fieldset>
       <fieldset>
@@ -199,7 +182,7 @@
         <input type="text" id="pName" placeholder="例：ダーク赤かすれ" maxlength="40">
         <label class="check"><input type="checkbox" id="pImg"> 画像も含める（背景素材などを毎回使うとき）</label>
         <button class="primary" id="pSave" style="margin-top:10px;width:100%">今のデザインをプリセットに保存</button>
-        <p class="hint">文字レイヤー（内容とスタイル）、グループ、仕上げが保存されます。「画像も含める」にすると画像レイヤーも一緒に保存されます。画像なしのプリセットを使うと、今の画像はそのままで文字だけが入れ替わります。</p>
+        <p class="hint">文字レイヤー（内容とスタイル）、塗りつぶし、グループ、効果が保存されます。「画像も含める」にすると画像レイヤーも一緒に保存されます。画像なしのプリセットを使うと、今の画像はそのままで文字だけが入れ替わります。</p>
         <div class="plist" id="pList"></div>
       </fieldset>
       <fieldset>
@@ -288,11 +271,19 @@
   // node model
   //   tree: array, back → front. node.type: 'image' | 'text' | 'group'
   // =====================================================================
-  const IMG_DEFAULTS = {
-    fit:'free', x:W / 2, y:H / 2, scale:1, rot:0, flip:false, opacity:1, blend:'source-over',
-    bri:0, con:1, sat:1, dark:0, tint:'#1e4fa8', tintAmt:0, blur:0, feather:0,
+  // effects every layer (image / text / fill / group) can have
+  const FX_DEFAULTS = {
+    opacity:1, blend:'source-over',
+    bri:0, con:1, sat:1, dark:0, tint:'#1e4fa8', tintAmt:0, blur:0, feather:0, vig:0, vigSize:0.55, grain:0,
     sh:false, shColor:'#000000', shOp:0.7, shBlur:30, shDist:12,
   };
+  const FX_KEYS = Object.keys(FX_DEFAULTS);
+  const fx = () => Object.assign({}, FX_DEFAULTS);
+  const IMG_DEFAULTS = Object.assign({ fit:'free', x:W / 2, y:H / 2, scale:1, rot:0, flip:false }, FX_DEFAULTS);
+  const FILL_DEFAULTS = Object.assign({ color:'#000000', grad:false, color2:'#3a0000', angle:135 }, FX_DEFAULTS);
+  // pixel effects (need re-processing) vs. effects applied while compositing
+  const pixelFx = n => n.bri || n.con !== 1 || n.sat !== 1 || n.dark || n.tintAmt || n.blur || n.feather || n.vig || n.grain;
+  const needsLayer = n => pixelFx(n) || n.opacity < 1 || (n.blend && n.blend !== 'source-over') || n.sh;
   const TEXT_STYLE_DEFAULTS = () => ({
     st:{ font:'noto', weight:'900', track:-0.02, fill:'#ffffff', grad:false, fill2:'#ffb300',
          s1c:'#000000', s1w:0, s2c:'#ffffff', s2w:0, sh:false, shc:'#000000', sho:0.85, shb:8, shx:6, shy:6,
@@ -302,11 +293,15 @@
   });
   function newText(over) {
     return Object.assign({
-      type:'text', name:'', visible:true, x:W * 0.66, y:H / 2, scale:1, rot:0, opacity:1, blend:'source-over',
+      type:'text', name:'', visible:true, x:W * 0.66, y:H / 2, scale:1, rot:0,
+    }, fx(), {
       lines:[{ t:'テキスト', size:140, dx:0 }], align:'center', lh:1.02, small:0.78, tiny:0.45,
     }, TEXT_STYLE_DEFAULTS(), clone(over || {}), { id:newId() });
   }
   let tree = [];
+  // the always-present top group: its effects apply to the whole picture
+  const ROOT = Object.assign({ id:'root', type:'group', root:true, name:'全体', visible:true, open:true }, fx());
+  Object.defineProperty(ROOT, 'children', { get: () => tree, set: v => { tree = v; } });
   let selected = null;
   let nextId = 1;
   const newId = () => 'N' + (nextId++);
@@ -334,7 +329,9 @@
   function nodeName(n) {
     if (n.name) return n.name;
     if (n.type === 'text') return (n.lines.map(l => l.t).join(' ').replace(/[*{}\[\]]/g, '') || '（空の文字）').slice(0, 24);
+    if (n.root) return '全体';
     if (n.type === 'group') return 'グループ';
+    if (n.type === 'fill') return '塗りつぶし';
     return '画像';
   }
 
@@ -564,17 +561,24 @@
     g.imageSmoothingQuality = 'high'; g.drawImage(a, 0, 0, c.width, c.height);
     return c;
   }
-  function processImage(L) {
-    const key = [L.bri, L.con, L.sat, L.dark, L.tint, L.tintAmt, L.blur, L.feather].join('|');
-    if (L.proc && L.procKey === key) return L.proc;
-    const src = L.src, w = src.width, h = src.height;
-    const k = Math.max(w, h) / 1280;
+  let grainTile = null;
+  function grainPattern() {
+    if (grainTile) return grainTile;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const g = c.getContext('2d'), d = g.createImageData(256, 256), p = d.data;
+    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < p.length; i += 4) { const v = rnd() * 255; p[i] = p[i+1] = p[i+2] = v; p[i+3] = 255; }
+    g.putImageData(d, 0, 0); grainTile = c; return c;
+  }
+  // apply pixel effects to src; k = source pixels per output pixel
+  function fxPixels(src, n, k) {
+    const w = src.width, h = src.height;
     let c = document.createElement('canvas'); c.width = w; c.height = h;
     let g = c.getContext('2d'); g.drawImage(src, 0, 0);
-    if (L.bri || L.con !== 1 || L.sat !== 1 || L.dark || L.tintAmt) {
+    if (n.bri || n.con !== 1 || n.sat !== 1 || n.dark || n.tintAmt) {
       const d = g.getImageData(0, 0, w, h), p = d.data;
-      const tn = parseInt(L.tint.slice(1), 16), tr = tn >> 16 & 255, tg = tn >> 8 & 255, tb = tn & 255;
-      const bri = L.bri * 255, con = L.con, sat = L.sat, ta = L.tintAmt, dk = 1 - L.dark;
+      const tn = parseInt(n.tint.slice(1), 16), tr = tn >> 16 & 255, tg = tn >> 8 & 255, tb = tn & 255;
+      const bri = n.bri * 255, con = n.con, sat = n.sat, ta = n.tintAmt, dk = 1 - n.dark;
       const ov = (a, b) => a < 128 ? 2 * a * b / 255 : 255 - 2 * (255 - a) * (255 - b) / 255;
       for (let i = 0; i < p.length; i += 4) {
         if (p[i + 3] === 0) continue;
@@ -590,16 +594,31 @@
       }
       g.putImageData(d, 0, 0);
     }
-    if (L.blur) {
-      const b = blurCanvas(c, L.blur * k);
-      if (HAS_FILTER) {
+    if (n.vig) {   // darken toward the edges (only where there is content)
+      const gr = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * n.vigSize * 0.6, w / 2, h / 2, Math.hypot(w, h) / 2);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, `rgba(0,0,0,${n.vig})`);
+      g.save(); g.globalCompositeOperation = 'source-atop'; g.fillStyle = gr; g.fillRect(0, 0, w, h); g.restore();
+    }
+    if (n.grain) {
+      const t = document.createElement('canvas'); t.width = w; t.height = h;
+      const tg = t.getContext('2d'); tg.drawImage(c, 0, 0);
+      tg.globalAlpha = n.grain; tg.globalCompositeOperation = 'overlay';
+      const pat = tg.createPattern(grainPattern(), 'repeat');
+      if (k !== 1 && pat.setTransform) pat.setTransform(new DOMMatrix().scale(k));
+      tg.fillStyle = pat; tg.fillRect(0, 0, w, h);
+      tg.globalAlpha = 1; tg.globalCompositeOperation = 'destination-in'; tg.drawImage(c, 0, 0);
+      c = t; g = c.getContext('2d');
+    }
+    if (n.blur) {
+      const b = blurCanvas(c, n.blur * k);
+      if (HAS_FILTER) {   // filter blur fades the outer edge: keep a sharp copy underneath, then restore the shape
         const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
         const g2 = c2.getContext('2d'); g2.drawImage(c, 0, 0); g2.drawImage(b, 0, 0);
         g2.globalCompositeOperation = 'destination-in'; g2.drawImage(src, 0, 0); c = c2;
       } else c = b;
     }
-    if (L.feather) {
-      const r = L.feather * k, pad = Math.ceil(r * 2);
+    if (n.feather) {
+      const r = n.feather * k, pad = Math.ceil(r * 2);
       const m = document.createElement('canvas'); m.width = w + pad * 2; m.height = h + pad * 2;
       const mg = m.getContext('2d'); const inset = r * 0.8;
       mg.drawImage(src, pad + inset, pad + inset, Math.max(1, w - inset * 2), Math.max(1, h - inset * 2));
@@ -610,14 +629,43 @@
       og.globalCompositeOperation = 'destination-in'; og.drawImage(mb, -pad, -pad);
       c = out;
     }
-    L.proc = c; L.procKey = key;
     return c;
+  }
+  const fxKey = n => ['bri', 'con', 'sat', 'dark', 'tint', 'tintAmt', 'blur', 'feather', 'vig', 'vigSize', 'grain'].map(k => n[k]).join('|');
+  // the leaf's own picture before effects
+  function fillCanvas(n) {
+    const key = [n.color, n.grad, n.color2, n.angle].join('|');
+    if (n._fc && n._fck === key) return n._fc;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    if (n.grad) {
+      const a = n.angle * Math.PI / 180, r = Math.hypot(W, H) / 2;
+      const gr = g.createLinearGradient(W / 2 - Math.cos(a) * r, H / 2 - Math.sin(a) * r, W / 2 + Math.cos(a) * r, H / 2 + Math.sin(a) * r);
+      gr.addColorStop(0, n.color); gr.addColorStop(1, n.color2); g.fillStyle = gr;
+    } else g.fillStyle = n.color;
+    g.fillRect(0, 0, W, H);
+    n._fc = c; n._fck = key; return c;
+  }
+  function leafSource(n) {
+    if (n.type === 'image') return { c: n.src, k: Math.max(n.src.width, n.src.height) / 1280, key: 'img' };
+    if (n.type === 'fill') { const c = fillCanvas(n); return { c, k: 1, key: n._fck }; }
+    const R = renderText(n); return { c: R.c, k: 1, key: n._key };
+  }
+  // the leaf's picture with its pixel effects (cached until something changes)
+  function processLeaf(n) {
+    const S = leafSource(n);
+    if (!pixelFx(n)) return S.c;
+    const key = S.key + '#' + fxKey(n);
+    if (n.proc && n.procKey === key) return n.proc;
+    n.proc = fxPixels(S.c, n, S.k); n.procKey = key;
+    return n.proc;
   }
 
   // =====================================================================
   // geometry
   // =====================================================================
   function rectOf(n) {   // leaf: {cx, cy, w, h, rot}
+    if (n.type === 'fill') return { cx: W / 2, cy: H / 2, w: W, h: H, rot: 0 };
     if (n.type === 'text') {
       const R = renderText(n);
       return { cx: n.x, cy: n.y, w: R.bw, h: R.bh, rot: n.rot };
@@ -636,6 +684,7 @@
     return { x0: r.cx - hw, x1: r.cx + hw, y0: r.cy - hh, y1: r.cy + hh };
   }
   function bboxOf(n) {
+    if (n.root) return { x0: 0, x1: W, y0: 0, y1: H };
     if (n.type !== 'group') return aabb(rectOf(n));
     const bs = leaves(n.children, [], true).map(l => aabb(rectOf(l)));
     if (!bs.length) return null;
@@ -648,84 +697,79 @@
     const pad = n.type === 'text' ? 16 : 0;
     return Math.abs(lx) <= r.w / 2 + pad && Math.abs(ly) <= r.h / 2 + pad;
   }
+  const movable = l => l.type !== 'fill';
   function moveNode(n, dx, dy) {
-    if (n.type === 'group') leaves(n.children).forEach(l => { l.x += dx; l.y += dy; });
-    else { n.x += dx; n.y += dy; }
-  }
-
-  // =====================================================================
-  // finishing (phase 1: kept as global settings)
-  // =====================================================================
-  let grainTile = null;
-  function grain() {
-    if (grainTile) return grainTile;
-    const c = document.createElement('canvas'); c.width = c.height = 256;
-    const g = c.getContext('2d'), d = g.createImageData(256, 256), p = d.data;
-    for (let i = 0; i < p.length; i += 4) { const v = Math.random() * 255; p[i] = p[i+1] = p[i+2] = v; p[i+3] = 255; }
-    g.putImageData(d, 0, 0); grainTile = c; return c;
-  }
-  function drawVignette() {
-    const v = +$('vig').value; if (!v) return;
-    const size = +$('vigSize').value;
-    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * size * 0.6, W / 2, H / 2, Math.hypot(W, H) / 2);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${v})`);
-    ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
-  }
-  function drawGrain() {
-    const a = +$('grain').value; if (!a) return;
-    ctx.save(); ctx.globalAlpha = a; ctx.globalCompositeOperation = 'overlay';
-    ctx.fillStyle = ctx.createPattern(grain(), 'repeat'); ctx.fillRect(0, 0, W, H); ctx.restore();
+    (n.type === 'group' ? leaves(n.children) : [n]).filter(movable).forEach(l => { l.x += dx; l.y += dy; });
   }
 
   // =====================================================================
   // draw
   // =====================================================================
   let guides = [];   // snapping guides shown while dragging
-  function drawLeaf(n) {
-    ctx.save();
-    ctx.globalAlpha = n.opacity; ctx.globalCompositeOperation = n.blend || 'source-over';
-    if (n.type === 'text') {
-      const R = renderText(n);
-      ctx.translate(n.x, n.y); ctx.rotate(n.rot * Math.PI / 180);
-      ctx.drawImage(R.c, -R.ox - R.bw / 2, -R.oy - R.bh / 2);
-    } else {
-      const proc = processImage(n), r = rectOf(n);
-      if (n.sh) {
-        ctx.shadowColor = hexA(n.shColor, n.shOp); ctx.shadowBlur = n.shBlur;
-        ctx.shadowOffsetX = n.shDist; ctx.shadowOffsetY = n.shDist;
+  // composite a finished picture onto g with the node's opacity / blend / shadow
+  function composite(g, n, fn) {
+    g.save();
+    g.globalAlpha = n.opacity; g.globalCompositeOperation = n.blend || 'source-over';
+    if (n.sh) { g.shadowColor = hexA(n.shColor, n.shOp); g.shadowBlur = n.shBlur; g.shadowOffsetX = g.shadowOffsetY = n.shDist; }
+    fn(); g.restore();
+  }
+  function drawLeaf(n, g) {
+    const pic = processLeaf(n);
+    composite(g, n, () => {
+      if (n.type === 'fill') { g.drawImage(pic, 0, 0); return; }
+      if (n.type === 'text') {
+        const R = renderText(n);
+        g.translate(n.x, n.y); g.rotate(n.rot * Math.PI / 180);
+        g.drawImage(pic, -R.ox - R.bw / 2, -R.oy - R.bh / 2); return;
       }
-      ctx.translate(r.cx, r.cy); ctx.rotate(n.rot * Math.PI / 180);
-      if (n.flip) ctx.scale(-1, 1);
-      ctx.drawImage(proc, -r.w / 2, -r.h / 2, r.w, r.h);
+      const r = rectOf(n);
+      g.translate(r.cx, r.cy); g.rotate(n.rot * Math.PI / 180);
+      if (n.flip) g.scale(-1, 1);
+      g.drawImage(pic, -r.w / 2, -r.h / 2, r.w, r.h);
+    });
+  }
+  // a group without effects just draws its layers; with effects it is flattened first
+  function drawNode(n, g) {
+    if (!n.visible) return;
+    if (n.type !== 'group') return drawLeaf(n, g);
+    if (!needsLayer(n)) { n.children.forEach(c => drawNode(c, g)); return; }
+    const flat = groupCanvas(n);
+    composite(g, n, () => g.drawImage(flat, 0, 0, W, H));
+  }
+  // while a finger is down, group effects are worked out at half size (fast), then redone at full size
+  let interacting = false;
+  function groupCanvas(n) {
+    const draft = interacting && pixelFx(n);
+    const key = JSON.stringify(serial(n.children)) + '|' + fontGen + '|' + fxKey(n) + (draft ? '|draft' : '');
+    if (n._gc && n._gck === key) return n._gc;
+    const raw = document.createElement('canvas'); raw.width = W; raw.height = H;
+    const rg = raw.getContext('2d');
+    n.children.forEach(c => drawNode(c, rg));
+    let out = raw;
+    if (pixelFx(n)) {
+      if (draft) {
+        const half = document.createElement('canvas'); half.width = W / 2; half.height = H / 2;
+        half.getContext('2d').drawImage(raw, 0, 0, W / 2, H / 2);
+        out = fxPixels(half, n, 0.5);
+      } else out = fxPixels(raw, n, 1);
     }
-    ctx.restore();
+    n._gc = out; n._gck = key;
+    return out;
   }
   function draw(exporting) {
     ctx.save();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, W, H);
-    if ($('bg_grad').checked) {
-      const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, $('bg_c').value); g.addColorStop(1, $('bg_c2').value); ctx.fillStyle = g;
-    } else ctx.fillStyle = $('bg_c').value;
-    ctx.fillRect(0, 0, W, H);
-
     const vis = leaves(tree, [], true);
     if (!vis.length && !exporting) {
       ctx.fillStyle = '#666'; ctx.font = `700 34px ${FALLBACK}`; ctx.textAlign = 'center';
-      ctx.fillText('「レイヤー」タブの ＋画像 / ＋文字 から始めましょう', W / 2, H / 2);
+      ctx.fillText('「レイヤー」タブの ＋ボタンから始めましょう', W / 2, H / 2);
       ctx.textAlign = 'left';
     }
-    let vigDone = false;
-    for (const n of vis) {
-      if (!vigDone && n.type === 'text') { drawVignette(); vigDone = true; }
-      drawLeaf(n);
-    }
-    if (!vigDone) drawVignette();
-    drawGrain();
+    drawNode(ROOT, ctx);
 
     if (!exporting) {
-      if (selected && selected.visible) {
+      if (selected && selected.visible && !selected.root && selected.type !== 'fill') {
         const b = bboxOf(selected);
         if (b) {
           ctx.save();
@@ -836,33 +880,39 @@
   const picked = new Set();
   function renderTree() {
     const ul = $('tree'); ul.innerHTML = '';
-    if (!tree.length) { ul.innerHTML = '<li class="empty" style="background:none;cursor:default">まだレイヤーがありません。</li>'; renderBar(); return; }
-    const rows = [];
+    const rows = [{ n: ROOT, depth: 0 }];
     const add = (list, depth) => {
       [...list].reverse().forEach(n => {
         rows.push({ n, depth });
         if (n.type === 'group' && n.open !== false) add(n.children, depth + 1);
       });
     };
-    add(tree, 0);
+    add(tree, 1);
     rows.forEach(({ n, depth }) => {
       const li = document.createElement('li');
       if (n === selected && !multi) li.classList.add('sel');
       if (!n.visible) li.classList.add('hid');
-      li.style.marginLeft = (depth * 18) + 'px';
-      const sub = n.type === 'group' ? `${n.children.length}個のレイヤー` : n.type === 'text' ? '文字' : (n.fit === 'cover' ? '画像・画面いっぱい' : '画像');
+      if (n.root) li.classList.add('root');
+      li.style.marginLeft = (Math.max(0, depth - 1) * 18) + 'px';
+      const fxOn = pixelFx(n) || n.sh ? '・効果あり' : '';
+      const sub = n.root ? `画面全体の効果${fxOn}` : n.type === 'group' ? `${n.children.length}個のレイヤー${fxOn}` : n.type === 'text' ? `文字${fxOn}`
+        : n.type === 'fill' ? `塗りつぶし${fxOn}` : (n.fit === 'cover' ? '画像・画面いっぱい' : '画像') + fxOn;
       li.innerHTML =
-        (multi ? `<input type="checkbox" class="ck" ${picked.has(n) ? 'checked' : ''}>` : '') +
-        (n.type === 'group' ? `<span class="tw">${n.open === false ? '▶' : '▼'}</span>` : '') +
-        (n.type === 'image' ? `<img class="th" alt="">` : `<div class="th ${n.type === 'text' ? 't' : 'g'}">${n.type === 'text' ? '文' : '▣'}</div>`) +
+        (multi && !n.root ? `<input type="checkbox" class="ck" ${picked.has(n) ? 'checked' : ''}>` : '') +
+        (n.type === 'group' && !n.root ? `<span class="tw">${n.open === false ? '▶' : '▼'}</span>` : '') +
+        (n.type === 'image' ? `<img class="th" alt="">`
+          : n.root ? `<div class="th r">全</div>`
+          : n.type === 'fill' ? `<div class="th f"></div>`
+          : `<div class="th ${n.type === 'text' ? 't' : 'g'}">${n.type === 'text' ? '文' : '▣'}</div>`) +
         `<div class="nm"><span></span><small>${sub}</small></div>` +
-        `<button class="vis" aria-label="表示切替">${n.visible ? '表示' : '非表示'}</button>`;
+        (n.root ? '' : `<button class="vis" aria-label="表示切替">${n.visible ? '表示' : '非表示'}</button>`);
       if (n.type === 'image') li.querySelector('img').src = n.thumb;
+      if (n.type === 'fill') li.querySelector('.th').style.background = n.grad ? `linear-gradient(${n.angle + 90}deg, ${n.color}, ${n.color2})` : n.color;
       li.querySelector('.nm span').textContent = nodeName(n);
       li.addEventListener('click', e => {
         if (e.target.classList.contains('vis')) { n.visible = !n.visible; renderTree(); schedule(); return; }
         if (e.target.classList.contains('tw')) { n.open = n.open === false; renderTree(); saveWorkSoon(); return; }
-        if (multi) { if (picked.has(n)) picked.delete(n); else picked.add(n); renderTree(); return; }
+        if (multi) { if (n.root) return; if (picked.has(n)) picked.delete(n); else picked.add(n); renderTree(); return; }
         select(n);
       });
       ul.appendChild(li);
@@ -884,8 +934,9 @@
       b('やめる', () => { multi = false; picked.clear(); renderTree(); });
       return;
     }
-    b('複数選択', () => { multi = true; picked.clear(); if (selected) picked.add(selected); renderTree(); });
+    b('複数選択', () => { multi = true; picked.clear(); if (selected && !selected.root) picked.add(selected); renderTree(); });
     if (!selected) return;
+    if (selected.root) { b('編集 ›', () => showPage('edit'), { cls: 'primary' }); return; }
     const c = findCtx(selected); if (!c) return;
     b('編集 ›', () => showPage('edit'), { cls: 'primary' });
     b('▲ 前へ', () => { if (c.index < c.list.length - 1) { c.list.splice(c.index, 1); c.list.splice(c.index + 1, 0, selected); renderTree(); schedule(); } }, { disabled: c.index >= c.list.length - 1 });
@@ -924,7 +975,7 @@
     const order = []; walk(tree, n => { order.push(n); });
     arr.sort((a, b) => order.indexOf(a) - order.indexOf(b));
     const front = arr[arr.length - 1], fc = findCtx(front);
-    const g = { id: newId(), type: 'group', name: '', visible: true, open: true, children: [] };
+    const g = Object.assign({ id: newId(), type: 'group', name: '', visible: true, open: true, children: [] }, fx());
     fc.list.splice(fc.index + 1, 0, g);
     arr.forEach(n => { const c = findCtx(n); c.list.splice(c.index, 1); g.children.push(n); });
     multi = false; picked.clear(); selected = g;
@@ -933,7 +984,7 @@
   function cloneNode(n) {
     const c = Object.assign({}, n);
     c.id = newId();
-    delete c._r; delete c._key;
+    delete c._r; delete c._key; delete c._fc; delete c._fck; c.proc = null; c.procKey = '';
     if (n.type === 'text') { c.lines = clone(n.lines); c.st = clone(n.st); c.acc = clone(n.acc); c.box = clone(n.box); }
     if (n.type === 'image') { c.proc = null; c.procKey = ''; store.putImage('work:img:' + c.id, c.src); }
     if (n.type === 'group') c.children = n.children.map(cloneNode);
@@ -941,7 +992,7 @@
   }
   function duplicateSelected() {
     const c = findCtx(selected); if (!c) return;
-    const d = cloneNode(selected); moveNode(d, 24, 24);
+    const d = cloneNode(selected); if (selected.type !== 'fill') moveNode(d, 24, 24);
     c.list.splice(c.index + 1, 0, d); selected = d; renderTree(); renderEditor(); schedule();
   }
   function insertNode(n) {
@@ -1040,6 +1091,7 @@
     const changed = () => { renderTreeNames(); schedule(); };
     if (n.type === 'group') return groupEditor(n, changed);
     if (n.type === 'image') return imageEditor(n, changed);
+    if (n.type === 'fill') return fillEditor(n, changed);
     return textEditor(n, changed);
   }
   function renderTreeNames() {   // cheap update of the selected row's label
@@ -1052,13 +1104,61 @@
     i.addEventListener('input', () => { n.name = i.value; renderTreeNames(); saveWorkSoon(); });
     f.appendChild(w);
   }
+  // ---- shared effects editor ----
+  const FX_PRESETS = [
+    { name:'なじませ（暗く＋ぼかし）', v:{ dark:0.4, blur:3, sat:0.75, con:1.1 } },
+    { name:'白黒・強め', v:{ sat:0, con:1.3, bri:-0.03 } },
+    { name:'周辺を暗く', v:{ vig:0.75, vigSize:0.55 } },
+    { name:'フィルムの粒子', v:{ grain:0.18 } },
+    { name:'青みの色調', v:{ tint:'#1e4fa8', tintAmt:0.45, sat:0.8 } },
+    { name:'セピア', v:{ tint:'#8a5a2b', tintAmt:0.5, sat:0.3 } },
+    { name:'影', v:{ sh:true, shColor:'#000000', shOp:0.85, shBlur:30, shDist:14 } },
+    { name:'後光（光る縁）', v:{ sh:true, shColor:'#ffffff', shOp:0.6, shBlur:40, shDist:0 } },
+    { name:'効果をすべて解除', v:null },
+  ];
+  function effectsEditor(body, n, changed) {
+    const ps = document.createElement('div'); ps.className = 'sec'; ps.innerHTML = '<h3>効果のプリセット（重ねがけ可）</h3>';
+    chips(ps, FX_PRESETS.map(p => [p.name, () => {
+      if (p.v === null) FX_KEYS.forEach(k => { n[k] = FX_DEFAULTS[k]; }); else Object.assign(n, p.v);
+      renderEditor(); changed();
+    }]), 'btns');
+    body.appendChild(ps);
+    section(body, '色調', [
+      ['rng', 'bri', '明るさ', -0.6, 0.6, 0.01], ['rng', 'con', 'コントラスト', 0.5, 2, 0.01], ['rng', 'sat', '彩度（0=白黒）', 0, 2, 0.01],
+      ['rng', 'dark', '暗くする', 0, 0.95, 0.01], ['col', 'tint', '色をかぶせる'], ['rng', 'tintAmt', 'かぶせる強さ', 0, 1, 0.01],
+    ], n, changed);
+    section(body, 'ぼかし・なじませ', [
+      ['rng', 'blur', '全体ぼかし', 0, 30, 1], ['rng', 'feather', '輪郭ぼかし', 0, 80, 1],
+      ['rng', 'opacity', '不透明度', 0, 1, 0.01], ['sel', 'blend', '重ね方', BLENDS],
+    ], n, changed);
+    section(body, '周辺・質感', [
+      ['rng', 'vig', '周辺を暗く', 0, 1, 0.01], ['rng', 'vigSize', '暗くする範囲', 0.2, 0.9, 0.01], ['rng', 'grain', '粒子感', 0, 0.5, 0.01],
+    ], n, changed);
+    section(body, '影・光', [
+      ['chk', 'sh', '影をつける'], ['col', 'shColor', '影の色'], ['rng', 'shOp', '濃さ', 0, 1, 0.01],
+      ['rng', 'shBlur', 'ぼかし', 0, 80, 1], ['rng', 'shDist', 'ずらし', 0, 50, 1],
+      ['hint', '影の色を明るくして、ずらしを0にすると光って見えます（後光）。'],
+    ], n, changed);
+  }
   function groupEditor(g, changed) {
-    const f = fieldset('グループ');
-    nameField(f, g);
+    const f = fieldset(g.root ? '全体（画面全体の効果）' : 'グループ');
+    if (!g.root) nameField(f, g);
     const p = document.createElement('p'); p.className = 'hint';
-    p.textContent = `${leaves(g.children).length}個のレイヤーが入っています。プレビューでグループの枠内をドラッグするとまとめて動き、2本指でまとめて拡大・回転できます。グループへの効果（色調・ぼかし・周辺を暗く など）は次の段階で追加します。`;
+    p.textContent = g.root
+      ? 'ここでかけた効果は、すべてのレイヤーをまとめた画面全体にかかります（周辺を暗く・粒子感・色調の統一など）。文字にはかけたくないときは、画像だけをグループにして、そのグループに効果をかけてください。'
+      : `${leaves(g.children).length}個のレイヤーが入っています。効果は、中身をまとめた1枚の絵にかかります。プレビューで枠内をドラッグするとまとめて動き、2本指でまとめて拡大・回転できます。`;
     f.appendChild(p);
-    alignBar(f, g);
+    if (!g.root) alignBar(f, g);
+    effectsEditor(f, g, changed);
+  }
+  function fillEditor(n, changed) {
+    const f = fieldset('塗りつぶし');
+    nameField(f, n);
+    section(f, '色', [
+      ['col', 'color', '色'], ['chk', 'grad', 'グラデーション'], ['col', 'color2', '2色目'], ['rng', 'angle', '向き', 0, 360, 1],
+      ['hint', '画面全体を塗ります。背景色にしたり、重ね方を変えて色を重ねたり（乗算・スクリーンなど）できます。'],
+    ], n, () => { renderTree(); changed(); });
+    effectsEditor(f, n, changed);
   }
   const IMG_PRESETS = [
     { name:'背景向け（暗く＋ぼかし）', v:{ fit:'cover', dark:0.45, blur:3, sat:0.7, con:1.1, feather:0, sh:false, rot:0, scale:1, x:W / 2, y:H / 2 } },
@@ -1072,7 +1172,7 @@
     const f = fieldset('画像');
     nameField(f, L);
     chips(f, IMG_PRESETS.map(p => [p.name, () => {
-      if (p.v === null) { const keep = { fit: L.fit, x: L.x, y: L.y, scale: L.scale, rot: L.rot }; Object.assign(L, IMG_DEFAULTS, keep); }
+      if (p.v === null) { const keep = { fit: L.fit, x: L.x, y: L.y, scale: L.scale, rot: L.rot, flip: L.flip }; Object.assign(L, IMG_DEFAULTS, keep); }
       else Object.assign(L, p.v);
       renderEditor(); changed();
     }]), 'btns');
@@ -1081,19 +1181,7 @@
       ['rng', 'scale', '大きさ', 0.1, 4, 0.01], ['rng', 'rot', '回転', -180, 180, 0.5], ['chk', 'flip', '左右反転'],
     ], L, changed);
     alignBar(f, L);
-    section(f, '色調', [
-      ['rng', 'bri', '明るさ', -0.6, 0.6, 0.01], ['rng', 'con', 'コントラスト', 0.5, 2, 0.01], ['rng', 'sat', '彩度（0=白黒）', 0, 2, 0.01],
-      ['rng', 'dark', '暗くする', 0, 0.95, 0.01], ['col', 'tint', '色をかぶせる'], ['rng', 'tintAmt', 'かぶせる強さ', 0, 1, 0.01],
-    ], L, changed);
-    section(f, 'ぼかし・なじませ', [
-      ['rng', 'blur', '全体ぼかし', 0, 30, 1], ['rng', 'feather', '輪郭ぼかし', 0, 80, 1], ['rng', 'opacity', '不透明度', 0, 1, 0.01],
-      ['sel', 'blend', '重ね方', BLENDS],
-    ], L, changed);
-    section(f, '影・光', [
-      ['chk', 'sh', '影をつける'], ['col', 'shColor', '影の色'], ['rng', 'shOp', '濃さ', 0, 1, 0.01],
-      ['rng', 'shBlur', 'ぼかし', 0, 80, 1], ['rng', 'shDist', 'ずらし', 0, 50, 1],
-      ['hint', '影の色を明るくして、ずらしを0にすると光って見えます（後光）。'],
-    ], L, changed);
+    effectsEditor(f, L, changed);
   }
   const BLENDS = [['source-over', '通常'], ['screen', 'スクリーン（明るい所だけ乗る）'], ['multiply', '乗算（暗い所だけ乗る）'],
     ['overlay', 'オーバーレイ'], ['soft-light', 'ソフトライト'], ['lighten', '比較（明）'], ['darken', '比較（暗）']];
@@ -1101,7 +1189,7 @@
   function textEditor(T, changed) {
     const f = fieldset('文字');
     const tabs = document.createElement('div'); tabs.className = 'subtabs';
-    [['content', '内容'], ['style', 'スタイル'], ['box', '強調・箱'], ['place', '配置']].forEach(([k, t]) => {
+    [['content', '内容'], ['style', 'スタイル'], ['box', '強調・箱'], ['fx', '効果'], ['place', '配置']].forEach(([k, t]) => {
       const b = document.createElement('button'); b.textContent = t; if (k === editTab) b.className = 'on';
       b.onclick = () => { editTab = k; renderEditor(); };
       tabs.appendChild(b);
@@ -1204,10 +1292,15 @@
         ['hint', '白箱テンプレートは「強調だけ・塗りつぶし・白」です。<code>*気楽*{に}</code> のように書くと、箱のすぐ横に小さい文字が並びます。'],
       ], T, changed);
     }
+    if (editTab === 'fx') {
+      const h = document.createElement('p'); h.className = 'hint'; h.style.marginTop = '0';
+      h.textContent = '文字を1枚の絵として、画像と同じ効果をかけます。文字ごとの影・縁取りは「スタイル」、レイヤー全体の効果はここです。';
+      body.appendChild(h);
+      effectsEditor(body, T, changed);
+    }
     if (editTab === 'place') {
       section(body, '配置', [
-        ['rng', 'scale', '大きさ', 0.1, 3, 0.01], ['rng', 'rot', '回転', -180, 180, 0.5], ['rng', 'opacity', '不透明度', 0, 1, 0.01],
-        ['sel', 'blend', '重ね方', BLENDS],
+        ['rng', 'scale', '大きさ', 0.1, 3, 0.01], ['rng', 'rot', '回転', -180, 180, 0.5],
       ], T, changed);
       alignBar(body, T);
       const sv = document.createElement('div'); sv.className = 'sec';
@@ -1237,7 +1330,7 @@
   $('snapRotBtn').onclick = () => { snapOpt.rot = !snapOpt.rot; syncSnapBtns(); flash(snapOpt.rot ? '角度の吸い付き：オン' : '角度の吸い付き：オフ'); };
   syncSnapBtns();
   const normAngle = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return a === -180 ? 180 : a; };
-  const isCover = l => l.type === 'image' && l.fit === 'cover';
+  const isCover = l => l.type === 'fill' || (l.type === 'image' && l.fit === 'cover');
   function pickAt(p) {
     const vis = leaves(tree, [], true).reverse();
     // the frontmost layer under the finger that is not a full-screen background
@@ -1257,7 +1350,7 @@
   // snap only to the canvas centre and edges
   function snapTargets() { return { xs: [0, W / 2, W], ys: [0, H / 2, H] }; }
   function startDrag(p) {
-    if (!selected) { drag = null; return; }
+    if (!selected || selected.root || selected.type === 'fill') { drag = null; return; }
     const b = bboxOf(selected);
     drag = { sx: p.x, sy: p.y, moved: { x: 0, y: 0 }, b0: b, targets: snapTargets() };
   }
@@ -1269,6 +1362,7 @@
   cv.addEventListener('pointerdown', e => {
     const p = toCanvas(e); pts.set(e.pointerId, p);
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    interacting = true;
     if (pts.size === 1) {
       const t = pickAt(p);
       if (t !== selected) { selected = t; renderTree(); renderEditor(); schedule(); }
@@ -1276,7 +1370,8 @@
       if (drag) cv.classList.add('dragging');
     } else if (pts.size === 2 && selected) {
       const [a, b] = [...pts.values()];
-      const items = selected.type === 'group' ? leaves(selected.children) : [selected];
+      if (selected.root || selected.type === 'fill') return;
+      const items = (selected.type === 'group' ? leaves(selected.children) : [selected]).filter(movable);
       const bb = bboxOf(selected) || { x0: 0, x1: W, y0: 0, y1: H };
       pinch = { d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x),
         cx: (bb.x0 + bb.x1) / 2, cy: (bb.y0 + bb.y1) / 2,
@@ -1324,7 +1419,7 @@
     pts.delete(e.pointerId);
     if (pts.size < 2 && pinch) { pinch = null; if (selected) renderEditor(); }
     if (pts.size === 1) startDrag([...pts.values()][0]);
-    if (pts.size === 0) { drag = null; guides = []; cv.classList.remove('dragging'); schedule(); }
+    if (pts.size === 0) { drag = null; guides = []; interacting = false; cv.classList.remove('dragging'); schedule(); }
   }
   cv.addEventListener('pointerup', endPointer); cv.addEventListener('pointercancel', endPointer);
   cv.addEventListener('dragover', e => e.preventDefault());
@@ -1357,6 +1452,11 @@
   }
   $('addImg').onclick = () => $('imgFile').click();
   $('imgFile').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+  $('addFill').onclick = () => {
+    const f = Object.assign({ id: newId(), type: 'fill', name: '', visible: true }, FILL_DEFAULTS);
+    // a new fill goes to the very back (as a background colour)
+    tree.unshift(f); selected = f; renderTree(); renderEditor(); schedule(); showPage('edit');
+  };
   $('addText').onclick = () => { const t = textFromTemplate(TEXT_TEMPLATES[3].node); insertNode(t); selected = t; editTab = 'content'; renderTree(); renderEditor(); render(); showPage('edit'); };
   function renderTemplates() {
     const box = $('tplList'); box.innerHTML = '';
@@ -1391,23 +1491,29 @@
     document.querySelectorAll('.page').forEach(s => s.classList.toggle('on', s.id === 'page-' + p));
   }
   document.querySelectorAll('#mainTabs button').forEach(b => b.onclick = () => showPage(b.dataset.page));
-  const KEY = 'thumbMaker.v4';
-  function collectFin() { const o = {}; document.querySelectorAll('[data-save]').forEach(el => o[el.id] = el.type === 'checkbox' ? el.checked : el.value); return o; }
-  function applyFin(o) {
-    document.querySelectorAll('[data-save]').forEach(el => {
-      if (!o || !(el.id in o)) return;
-      if (el.type === 'checkbox') el.checked = !!o[el.id]; else el.value = o[el.id];
-    });
-    updateFinOutputs();
+  const KEY = 'thumbMaker.v4';   // (older builds kept global finishing settings here)
+  const FX_ROOT_KEYS = FX_KEYS;
+  const rootFx = () => { const o = {}; FX_ROOT_KEYS.forEach(k => o[k] = ROOT[k]); return o; };
+  const setRootFx = o => { Object.assign(ROOT, fx(), o || {}); };
+  // old global finishing {bg_c, bg_grad, bg_c2, vig, vigSize, grain} → layers & effects
+  function withFin(nodes, fin) {
+    fin = fin || {};
+    const num = (v, d) => (v === undefined || v === '' || isNaN(+v)) ? d : +v;
+    const fill = Object.assign({ id: newId(), type: 'fill', name: '背景色', visible: true }, FILL_DEFAULTS,
+      { color: fin.bg_c || '#000000', grad: !!fin.bg_grad, color2: fin.bg_c2 || '#3a0000', angle: 34 });
+    let out = [fill].concat(nodes);
+    const vig = num(fin.vig, 0);
+    if (vig > 0) {
+      // the old vignette sat just under the text: put everything behind the first text into a group with it
+      const ti = out.findIndex(n => n.type === 'text');
+      const cutAt = ti < 0 ? out.length : ti;
+      const g = Object.assign({ id: newId(), type: 'group', name: '背景（周辺を暗く）', visible: true, open: false, children: out.slice(0, cutAt) }, fx(),
+        { vig, vigSize: num(fin.vigSize, 0.55) });
+      out = [g].concat(out.slice(cutAt));
+    }
+    setRootFx({ grain: num(fin.grain, 0) });
+    return out;
   }
-  function updateFinOutputs() {
-    document.querySelectorAll('#page-fin .row').forEach(r => {
-      const i = r.querySelector('input'), o = r.querySelector('output');
-      if (i && o) o.textContent = /vig$|grain/.test(i.id) ? Math.round(i.value * 100) + '%' : (+i.value).toFixed(2);
-    });
-  }
-  $('page-fin').addEventListener('input', () => { updateFinOutputs(); schedule(); });
-  $('page-fin').addEventListener('change', () => { schedule(); });
 
   // =====================================================================
   // storage (IndexedDB)
@@ -1460,8 +1566,12 @@
     const out = [];
     for (const n of list) {
       if (n.type === 'image') { if (!withImages) continue; const m = {}; IMG_KEYS.forEach(k => m[k] = n[k]); out.push(m); }
-      else if (n.type === 'text') { const m = Object.assign({}, n); delete m._r; delete m._key; out.push(clone(m)); }
-      else out.push({ id: n.id, type: 'group', name: n.name, visible: n.visible, open: n.open, children: serial(n.children, withImages) });
+      else if (n.type === 'text' || n.type === 'fill') {
+        const m = Object.assign({}, n); ['_r', '_key', '_fc', '_fck', 'proc', 'procKey'].forEach(k => delete m[k]); out.push(clone(m));
+      } else {
+        const g = { id: n.id, type: 'group', name: n.name, visible: n.visible, open: n.open, children: serial(n.children, withImages) };   // (_gc caches are not saved)
+        FX_KEYS.forEach(k => g[k] = n[k]); out.push(g);
+      }
     }
     return out;
   }
@@ -1482,9 +1592,13 @@
         const n = Object.assign(newText(), clone(m), { st: Object.assign(d.st, m.st), acc: Object.assign(d.acc, m.acc), box: Object.assign(d.box, m.box) });
         n.id = freshIds ? newId() : m.id;
         out.push(n);
+      } else if (m.type === 'fill') {
+        out.push(Object.assign({}, FILL_DEFAULTS, m, { id: freshIds ? newId() : m.id }));
       } else {
-        out.push({ id: freshIds ? newId() : m.id, type: 'group', name: m.name || '', visible: m.visible !== false, open: m.open !== false,
-          children: await deserial(m.children || [], getBlob, freshIds, idMap) });
+        const g = { id: freshIds ? newId() : m.id, type: 'group', name: m.name || '', visible: m.visible !== false, open: m.open !== false,
+          children: await deserial(m.children || [], getBlob, freshIds, idMap) };
+        FX_KEYS.forEach(k => g[k] = m[k] !== undefined ? m[k] : FX_DEFAULTS[k]);
+        out.push(g);
       }
     }
     return out;
@@ -1492,14 +1606,13 @@
   function fixNextId() {
     walk(tree, n => { const k = parseInt(String(n.id).slice(1), 10); if (k >= nextId) nextId = k + 1; });
   }
-  const snapshot = () => ({ v: 2, tree: serial(tree), fin: collectFin() });
+  const snapshot = () => ({ v: 3, tree: serial(tree), root: rootFx() });
 
   let saveT = 0, lastSaved = null, restoring = true;
   function saveWorkSoon() {
     if (restoring) return;
     clearTimeout(saveT);
     saveT = setTimeout(async () => {
-      try { localStorage.setItem(KEY, JSON.stringify(collectFin())); } catch (e) {}
       try { await store.set('work:meta', snapshot()); lastSaved = new Date(); setStatus(true); }
       catch (e) { setStatus(false); }
     }, 700);
@@ -1618,25 +1731,26 @@
       let fin = null; try { fin = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
       const snap = await store.get('work:meta');
       setStatus(true);
-      if (snap && snap.v === 2) {
+      if (snap && snap.v === 3) {
         tree = await deserial(snap.tree, id => store.get('work:img:' + id), false);
-        applyFin(snap.fin || fin || {});
+        setRootFx(snap.root);
+      } else if (snap && snap.v === 2) {
+        tree = withFin(await deserial(snap.tree, id => store.get('work:img:' + id), false), snap.fin || fin);
+        flash('仕上げの設定をレイヤーに変換しました');
       } else if (snap && snap.order) {
         const S = oldSettings();
-        tree = await migrateV1(snap, S, oldLines(), id => store.get('work:img:' + id), false);
-        applyFin(finFromOld(S));
+        tree = withFin(await migrateV1(snap, S, oldLines(), id => store.get('work:img:' + id), false), finFromOld(S));
         flash('以前の作業を新しい形式に変換しました');
       } else {
         const S = oldSettings();
-        if (Object.keys(S).length) { tree = [migrateText(S, oldLines())]; applyFin(finFromOld(S)); }
-        else tree = [textFromTemplate(TEXT_TEMPLATES[0].node)];
-        if (fin) applyFin(fin);
+        if (Object.keys(S).length) tree = withFin([migrateText(S, oldLines())], finFromOld(S));
+        else tree = withFin([textFromTemplate(TEXT_TEMPLATES[0].node)], fin || {});
       }
       fixNextId();
-      if (leaves(tree).some(l => l.type === 'image')) flash('前回の作業を復元しました');
+      if (snap && snap.v === 3 && leaves(tree).some(l => l.type === 'image')) flash('前回の作業を復元しました');
     } catch (e) {
       setStatus(false);
-      if (!tree.length) tree = [textFromTemplate(TEXT_TEMPLATES[0].node)];
+      if (!tree.length) tree = withFin([textFromTemplate(TEXT_TEMPLATES[0].node)], {});
     }
   }
 
@@ -1647,7 +1761,7 @@
     setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = btn.dataset.orig; } }, 3500);
   }
   $('clearWork').onclick = e => armed(e.currentTarget, 'もう一度押すとすべて外します', async () => {
-    await dropWorkImages(); tree = []; selected = null;
+    await dropWorkImages(); tree = withFin([], {}); setRootFx({}); selected = null;
     renderTree(); renderEditor(); schedule(); flash('新しく作り直しました');
   });
 
@@ -1695,7 +1809,7 @@
   async function writePreset(id, name, withImg) {
     const keys = await store.keys().catch(() => []);
     for (const k of keys) if (String(k).startsWith('preset:' + id + ':img:')) await store.del(k);
-    const data = { v: 2, tree: serial(tree, withImg), fin: collectFin(), withImg };
+    const data = { v: 3, tree: serial(tree, withImg), root: rootFx(), withImg };
     if (withImg) for (const l of leaves(tree)) if (l.type === 'image') await store.putImage(`preset:${id}:img:${l.id}`, l.src);
     await store.set('preset:' + id, data);
     const entry = { id, name, at: Date.now(), img: withImg, thumb: previewThumb() };
@@ -1705,22 +1819,25 @@
   }
   // replace text/group content but keep current images (when the preset has no images)
   function keepImagesWith(newNodes) {
-    // drop text layers (and groups left empty), keep image layers where they are
+    // a design-only preset: keep your image layers, take its text, fills and effects
     const strip = list => list.filter(n => {
-      if (n.type === 'text') return false;
+      if (n.type === 'text' || n.type === 'fill') return false;
       if (n.type === 'group') { n.children = strip(n.children); return n.children.length > 0; }
       return true;
     });
-    return strip(tree).concat(newNodes);
+    const onlyFills = n => n.type === 'fill' || (n.type === 'group' && leaves(n.children).length > 0 && leaves(n.children).every(l => l.type === 'fill'));
+    return newNodes.filter(onlyFills).concat(strip(tree), newNodes.filter(n => !onlyFills(n)));
   }
   async function usePreset(p) {
     const data = await store.get('preset:' + p.id);
     if (!data) { flash('このプリセットのデータが見つかりません'); return; }
     flash('読み込み中…');
     let nodes;
-    if (data.v === 2) {
+    if (data.v === 3) {
       nodes = await deserial(data.tree, id => store.get(`preset:${p.id}:img:${id}`), true);
-      applyFin(data.fin || {});
+      setRootFx(data.root);
+    } else if (data.v === 2) {
+      nodes = withFin(await deserial(data.tree, id => store.get(`preset:${p.id}:img:${id}`), true), data.fin);
     } else {   // old preset {settings, lines, work}
       const S = data.settings || {};
       nodes = data.work ? await migrateV1(data.work, S, data.lines, id => store.get(`preset:${p.id}:img:${id}`), true)
@@ -1730,7 +1847,6 @@
       if (!hadText && !data.work) {
         const look = nodes.find(n => n.type === 'text');
         leaves(tree).filter(l => l.type === 'text').forEach(t => Object.assign(t, { st: clone(look.st), acc: clone(look.acc), box: clone(look.box) }));
-        applyFin(finFromOld(S));
         renderTree(); renderEditor(); render(); flash(`「${p.name}」のデザインを適用しました`);
         return;
       }
@@ -1739,9 +1855,9 @@
         cur.forEach(t => Object.assign(t, { st: clone(look.st), acc: clone(look.acc), box: clone(look.box) }));
         if (cur.length) nodes = nodes.filter(n => n.type !== 'text').concat(cur);
       }
-      applyFin(finFromOld(S));
+      nodes = withFin(nodes, finFromOld(S));
     }
-    const withImg = data.v === 2 ? data.withImg : !!data.work;
+    const withImg = data.v >= 2 ? data.withImg : !!data.work;
     if (withImg) { await dropWorkImages(); tree = nodes; await persistImages(tree); }
     else tree = keepImagesWith(nodes);
     selected = null; renderTree(); renderEditor(); render();
@@ -1792,7 +1908,7 @@
       }
       ps.push({ entry: p, data, images: pimgs });
     }
-    return JSON.stringify({ app: 'thumbMaker', v: 2, at: new Date().toISOString(), work: snapshot(), images: imgs, presets: ps, templates: myTpls });
+    return JSON.stringify({ app: 'thumbMaker', v: 3, at: new Date().toISOString(), work: snapshot(), images: imgs, presets: ps, templates: myTpls });
   }
   function browserDownload(data, name, type) {
     try {
@@ -1823,15 +1939,16 @@
       flash('バックアップを読み込み中…');
       const getImg = async id => b.images && b.images[id] ? dataURLToBlob(b.images[id]) : null;
       let nodes;
-      if (b.v === 2) { nodes = await deserial(b.work.tree, getImg, true); applyFin(b.work.fin || {}); }
-      else { const S = b.settings || {}; nodes = await migrateV1(b.work, S, b.lines, getImg, true); applyFin(finFromOld(S)); }
+      if (b.work && b.work.v === 3) { nodes = await deserial(b.work.tree, getImg, true); setRootFx(b.work.root); }
+      else if (b.v === 2) nodes = withFin(await deserial(b.work.tree, getImg, true), b.work.fin);
+      else { const S = b.settings || {}; nodes = withFin(await migrateV1(b.work, S, b.lines, getImg, true), finFromOld(S)); }
       await dropWorkImages(); tree = nodes; await persistImages(tree);
       let added = 0;
       for (const item of b.presets || []) {
         const id = 'P' + Date.now().toString(36) + (added++);
         for (const [lid, url] of Object.entries(item.images || {})) await store.set(`preset:${id}:img:${lid}`, await dataURLToBlob(url));
         await store.set('preset:' + id, item.data);
-        presets.push(Object.assign({}, item.entry, { id, img: item.entry.img || !!(item.data && item.data.work) }));
+        presets.push(Object.assign({}, item.entry, { id, img: item.entry.img || !!(item.data && (item.data.work || item.data.withImg)) }));
       }
       if (added) await savePresetIndex();
       if (Array.isArray(b.templates) && b.templates.length) {
@@ -1873,7 +1990,7 @@
   // =====================================================================
   // start
   // =====================================================================
-  renderTemplates(); updateFinOutputs();
+  renderTemplates();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {}
   restoreWork().then(() => {
     restoring = false;
