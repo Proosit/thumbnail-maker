@@ -734,6 +734,15 @@
           ctx.restore();
         }
       }
+      if (pinch && pinch.angle != null) {
+        ctx.save();
+        const label = `${Math.round(pinch.angle)}°`;
+        ctx.font = `700 34px ${FALLBACK}`; const w = ctx.measureText(label).width + 36;
+        ctx.fillStyle = pinch.snapped ? '#ff3fa4' : 'rgba(0,0,0,.7)';
+        roundRect(ctx, W / 2 - w / 2, 18, w, 54, 27); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(label, W / 2, 57);
+        ctx.restore();
+      }
       if (guides.length) {
         ctx.save(); ctx.strokeStyle = '#ff3fa4'; ctx.lineWidth = 2; ctx.setLineDash([]);
         guides.forEach(gd => {
@@ -1212,28 +1221,30 @@
     const r = cv.getBoundingClientRect();
     return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
   }
+  const normAngle = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return a === -180 ? 180 : a; };
+  const isCover = l => l.type === 'image' && l.fit === 'cover';
   function pickAt(p) {
-    if (selected && selected.visible) {
-      if (selected.type === 'group') { const b = bboxOf(selected); if (b && p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1) return selected; }
-      else if (hitLeaf(selected, p)) return selected;
-    }
     const vis = leaves(tree, [], true).reverse();
-    return vis.find(l => !(l.type === 'image' && l.fit === 'cover') && hitLeaf(l, p)) || vis.find(l => hitLeaf(l, p)) || null;
+    // the frontmost layer under the finger that is not a full-screen background
+    const top = vis.find(l => !isCover(l) && hitLeaf(l, p));
+    if (selected && selected.visible) {
+      if (selected.type === 'group') {
+        // keep the group only if you touched one of its own layers
+        if (top && isAncestor(selected, top)) return selected;
+        if (!top) { const inside = vis.find(l => hitLeaf(l, p)); if (inside && isAncestor(selected, inside)) return selected; }
+      } else if (!isCover(selected) && hitLeaf(selected, p)) return selected;   // keep dragging the chosen layer even if it is behind
+    }
+    if (top) return top;
+    // nothing else there: a full-screen background
+    if (selected && selected.visible && isCover(selected) && hitLeaf(selected, p)) return selected;
+    return vis.find(l => hitLeaf(l, p)) || null;
   }
-  function snapTargets(moving) {
-    const xs = [0, W / 2, W], ys = [0, H / 2, H];
-    leaves(tree, [], true).forEach(l => {
-      if (l === moving || (moving.type === 'group' && isAncestor(moving, l))) return;
-      if (l.type === 'image' && l.fit === 'cover') return;
-      const b = aabb(rectOf(l));
-      xs.push(b.x0, (b.x0 + b.x1) / 2, b.x1); ys.push(b.y0, (b.y0 + b.y1) / 2, b.y1);
-    });
-    return { xs, ys };
-  }
+  // snap only to the canvas centre and edges
+  function snapTargets() { return { xs: [0, W / 2, W], ys: [0, H / 2, H] }; }
   function startDrag(p) {
     if (!selected) { drag = null; return; }
     const b = bboxOf(selected);
-    drag = { sx: p.x, sy: p.y, moved: { x: 0, y: 0 }, b0: b, targets: snapTargets(selected) };
+    drag = { sx: p.x, sy: p.y, moved: { x: 0, y: 0 }, b0: b, targets: snapTargets() };
   }
   function snapAxis(vals, targets, th) {
     let best = null;
@@ -1242,7 +1253,7 @@
   }
   cv.addEventListener('pointerdown', e => {
     const p = toCanvas(e); pts.set(e.pointerId, p);
-    cv.setPointerCapture(e.pointerId);
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     if (pts.size === 1) {
       const t = pickAt(p);
       if (t !== selected) { selected = t; renderTree(); renderEditor(); schedule(); }
@@ -1264,12 +1275,19 @@
     if (pinch && pts.size >= 2) {
       const [a, b] = [...pts.values()];
       const k = Math.max(0.05, Math.hypot(b.x - a.x, b.y - a.y) / pinch.d);
-      const da = Math.atan2(b.y - a.y, b.x - a.x) - pinch.ang, cs = Math.cos(da), sn = Math.sin(da);
+      let dd = (Math.atan2(b.y - a.y, b.x - a.x) - pinch.ang) * 180 / Math.PI;
+      // single layer: snap its absolute angle; group: snap the turn amount
+      const base = pinch.init.length === 1 ? pinch.init[0].rot : 0;
+      const target = base + dd, near = Math.round(target / 45) * 45;
+      pinch.snapped = Math.abs(target - near) <= 4;
+      if (pinch.snapped) dd = near - base;
+      pinch.angle = pinch.init.length === 1 ? normAngle(base + dd) : normAngle(dd);
+      const da = dd * Math.PI / 180, cs = Math.cos(da), sn = Math.sin(da);
       pinch.init.forEach(s => {
         const dx = s.x - pinch.cx, dy = s.y - pinch.cy;
         s.n.x = pinch.cx + (dx * cs - dy * sn) * k; s.n.y = pinch.cy + (dx * sn + dy * cs) * k;
         s.n.scale = Math.max(0.05, Math.min(6, s.scale * k));
-        s.n.rot = Math.round((s.rot + da * 180 / Math.PI) * 10) / 10;
+        s.n.rot = normAngle(Math.round((s.rot + dd) * 10) / 10);
       });
       schedule();
     } else if (drag) {
