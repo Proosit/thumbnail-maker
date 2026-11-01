@@ -181,10 +181,10 @@
       <fieldset>
         <legend>操作の設定</legend>
         <div class="grid2">
-          <button class="tog" id="snapPosBtn" aria-pressed="true">位置の吸い付き</button>
+          <button class="tog" id="snapPosBtn" aria-pressed="true">位置・大きさの吸い付き</button>
           <button class="tog" id="snapRotBtn" aria-pressed="true">角度の吸い付き</button>
         </div>
-        <p class="hint">位置：画面の中央・端に吸い付きます。角度：0°・45°刻みに吸い付きます。この端末に記憶され、プリセットには含まれません。</p>
+        <p class="hint">位置・大きさ：画面の中央・端に吸い付き、2本指で拡大するときは幅か高さが画面ぴったりになる大きさに吸い付きます。角度：0°・45°刻みに吸い付きます。この端末に記憶され、プリセットには含まれません。</p>
       </fieldset>
       <fieldset>
         <legend>作業の自動保存</legend>
@@ -297,6 +297,20 @@
   const FX_KEYS = Object.keys(FX_DEFAULTS);
   const fx = () => Object.assign({}, FX_DEFAULTS);
   const IMG_DEFAULTS = Object.assign({ fit:'free', x:W / 2, y:H / 2, scale:1, rot:0, flip:false }, FX_DEFAULTS);
+  // images are always freely placed; this sets size/position so one exactly covers the screen
+  function fitCover(n) {
+    const iw = n.src.width, ih = n.src.height, sc = Math.max(W / iw, H / ih);
+    n.scale = ih * sc / (H * 0.78); n.x = W / 2; n.y = H / 2; n.rot = 0;
+  }
+  // older layers in "画面いっぱい" mode → the same look as a free layer
+  function uncover(n) {
+    if (n.type === 'image' && n.fit === 'cover' && n.src) {
+      const iw = n.src.width, ih = n.src.height, sc = Math.max(W / iw, H / ih) * n.scale;
+      n.scale = ih * sc / (H * 0.78);
+    }
+    if (n.type === 'image') n.fit = 'free';
+    return n;
+  }
   const FILL_DEFAULTS = Object.assign({ color:'#000000', grad:false, color2:'#3a0000', angle:135 }, FX_DEFAULTS);
   // pixel effects (need re-processing) vs. effects applied while compositing
   const pixelFx = n => n.bri || n.con !== 1 || n.sat !== 1 || n.dark || n.tintAmt || n.blur || n.feather || n.vig || n.grain;
@@ -866,10 +880,6 @@
       return { cx: n.x, cy: n.y, w: R.bw, h: R.bh, rot: n.rot };
     }
     const iw = n.src.width, ih = n.src.height;
-    if (n.fit === 'cover') {
-      const sc = Math.max(W / iw, H / ih) * n.scale;
-      return { cx: n.x, cy: n.y, w: iw * sc, h: ih * sc, rot: n.rot };
-    }
     const h = H * 0.78 * n.scale;
     return { cx: n.x, cy: n.y, w: iw * h / ih, h, rot: n.rot };
   }
@@ -989,10 +999,12 @@
         ctx.restore();
       }
       if (guides.length) {
-        ctx.save(); ctx.strokeStyle = '#ff3fa4'; ctx.lineWidth = 2; ctx.setLineDash([]);
+        ctx.save(); ctx.strokeStyle = '#ff3fa4'; ctx.lineWidth = 3; ctx.setLineDash([]);
         guides.forEach(gd => {
           ctx.beginPath();
-          if (gd.x != null) { ctx.moveTo(gd.x, 0); ctx.lineTo(gd.x, H); } else { ctx.moveTo(0, gd.y); ctx.lineTo(W, gd.y); }
+          // keep edge guides inside the picture so they stay visible
+          if (gd.x != null) { const x = Math.min(W - 2, Math.max(2, gd.x)); ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+          else { const y = Math.min(H - 2, Math.max(2, gd.y)); ctx.moveTo(0, y); ctx.lineTo(W, y); }
           ctx.stroke();
         });
         ctx.restore();
@@ -1102,7 +1114,7 @@
       li.style.marginLeft = (Math.max(0, depth - 1) * 18) + 'px';
       const fxOn = pixelFx(n) || n.sh ? '・効果あり' : '';
       const sub = n.root ? `画面全体の効果${fxOn}` : n.type === 'group' ? `${n.children.length}個のレイヤー${fxOn}` : n.type === 'text' ? `文字${fxOn}`
-        : n.type === 'fill' ? `塗りつぶし${fxOn}` : (n.fit === 'cover' ? '画像・画面いっぱい' : '画像') + fxOn;
+        : n.type === 'fill' ? `塗りつぶし${fxOn}` : '画像' + fxOn;
       li.dataset.sidx = rows.findIndex(r => r.n === n);
       li.innerHTML =
         (!n.root && !multi ? `<span class="hd" aria-label="ドラッグで並べ替え">≡</span>` : '') +
@@ -1431,10 +1443,10 @@
     effectsEditor(f, n, changed);
   }
   const IMG_PRESETS = [
-    { name:'背景向け（暗く＋ぼかし）', v:{ fit:'cover', dark:0.45, blur:3, sat:0.7, con:1.1, feather:0, sh:false, rot:0, scale:1, x:W / 2, y:H / 2 } },
-    { name:'人物向け（白黒＋なじませ）', v:{ fit:'free', sat:0, con:1.3, bri:-0.03, feather:14, sh:false } },
-    { name:'表紙向け（傾け＋影）', v:{ fit:'free', rot:-7, scale:0.75, sh:true, shColor:'#000000', shOp:0.85, shBlur:34, shDist:16, feather:0 } },
-    { name:'素材を重ねる（スクリーン）', v:{ fit:'cover', blend:'screen', opacity:0.75, feather:0, sh:false, x:W / 2, y:H / 2 } },
+    { name:'背景向け（画面いっぱい＋暗く＋ぼかし）', cover:true, v:{ dark:0.45, blur:3, sat:0.7, con:1.1, feather:0, sh:false } },
+    { name:'人物向け（白黒＋なじませ）', v:{ sat:0, con:1.3, bri:-0.03, feather:14, sh:false } },
+    { name:'表紙向け（傾け＋影）', v:{ rot:-7, scale:0.75, sh:true, shColor:'#000000', shOp:0.85, shBlur:34, shDist:16, feather:0 } },
+    { name:'素材を重ねる（画面いっぱい＋スクリーン）', cover:true, v:{ blend:'screen', opacity:0.75, feather:0, sh:false } },
     { name:'後光（光る縁）', v:{ sh:true, shColor:'#ffffff', shOp:0.6, shBlur:40, shDist:0 } },
     { name:'効果をすべて解除', v:null },
   ];
@@ -1442,14 +1454,14 @@
     const f = fieldset('画像');
     nameField(f, L);
     chips(f, IMG_PRESETS.map(p => [p.name, () => {
-      if (p.v === null) { const keep = { fit: L.fit, x: L.x, y: L.y, scale: L.scale, rot: L.rot, flip: L.flip }; Object.assign(L, IMG_DEFAULTS, keep); }
-      else Object.assign(L, p.v);
+      if (p.v === null) { const keep = { x: L.x, y: L.y, scale: L.scale, rot: L.rot, flip: L.flip }; Object.assign(L, IMG_DEFAULTS, keep); }
+      else { Object.assign(L, p.v); if (p.cover) fitCover(L); }
       renderEditor(); changed();
     }]), 'btns');
     section(f, '配置', [
-      ['sel', 'fit', '', [['cover', '画面いっぱい（背景向け）'], ['free', '自由に配置（人物・物向け）']]],
       ['rng', 'scale', '大きさ', 0.1, 4, 0.01], ['rng', 'rot', '回転', -180, 180, 0.5], ['chk', 'flip', '左右反転'],
     ], L, changed);
+    chips(f, [['画面いっぱいに合わせる', () => { fitCover(L); renderEditor(); changed(); }]]);
     alignBar(f, L);
     effectsEditor(f, L, changed);
   }
@@ -1658,26 +1670,30 @@
     $('snapPosBtn').setAttribute('aria-pressed', snapOpt.pos); $('snapRotBtn').setAttribute('aria-pressed', snapOpt.rot);
     try { localStorage.setItem('thumbMaker.snap', JSON.stringify(snapOpt)); } catch (e) {}
   }
-  $('snapPosBtn').onclick = () => { snapOpt.pos = !snapOpt.pos; syncSnapBtns(); flash(snapOpt.pos ? '位置の吸い付き：オン' : '位置の吸い付き：オフ'); };
+  $('snapPosBtn').onclick = () => { snapOpt.pos = !snapOpt.pos; syncSnapBtns(); flash(snapOpt.pos ? '位置・大きさの吸い付き：オン' : '位置・大きさの吸い付き：オフ'); };
   $('snapRotBtn').onclick = () => { snapOpt.rot = !snapOpt.rot; syncSnapBtns(); flash(snapOpt.rot ? '角度の吸い付き：オン' : '角度の吸い付き：オフ'); };
   syncSnapBtns();
   const normAngle = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return a === -180 ? 180 : a; };
-  const isCover = l => l.type === 'fill' || (l.type === 'image' && l.fit === 'cover');
+  // is this layer actually showing a colour at point p?
+  function visibleHit(n, p) {
+    if (n.opacity < 0.03) return false;
+    if (n.type === 'text') return hitLeaf(n, p);          // letters count as solid inside their box
+    if (n.type === 'fill') return true;
+    const r = rectOf(n), a = -r.rot * Math.PI / 180, dx = p.x - r.cx, dy = p.y - r.cy;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a), ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) > r.w / 2 || Math.abs(ly) > r.h / 2) return false;
+    let u = (lx + r.w / 2) / r.w; const v = (ly + r.h / 2) / r.h;
+    if (n.flip) u = 1 - u;
+    const pic = processLeaf(n);
+    const px = Math.min(pic.width - 1, Math.floor(u * pic.width)), py = Math.min(pic.height - 1, Math.floor(v * pic.height));
+    try { return pic.getContext('2d').getImageData(px, py, 1, 1).data[3] > 25; } catch (e) { return true; }
+  }
+  // select the frontmost layer you can see under the finger
   function pickAt(p) {
-    const vis = leaves(tree, [], true).reverse();
-    // the frontmost layer under the finger that is not a full-screen background
-    const top = vis.find(l => !isCover(l) && hitLeaf(l, p));
-    if (selected && selected.visible) {
-      if (selected.type === 'group') {
-        // keep the group only if you touched one of its own layers
-        if (top && isAncestor(selected, top)) return selected;
-        if (!top) { const inside = vis.find(l => hitLeaf(l, p)); if (inside && isAncestor(selected, inside)) return selected; }
-      } else if (!isCover(selected) && hitLeaf(selected, p)) return selected;   // keep dragging the chosen layer even if it is behind
-    }
-    if (top) return top;
-    // nothing else there: a full-screen background
-    if (selected && selected.visible && isCover(selected) && hitLeaf(selected, p)) return selected;
-    return vis.find(l => hitLeaf(l, p)) || null;
+    const v = leaves(tree, [], true).reverse().find(l => visibleHit(l, p)) || null;
+    // a selected group stays selected when you touch one of its own layers (so it moves as a whole)
+    if (v && selected && selected.type === 'group' && !selected.root && selected.visible && isAncestor(selected, v)) return selected;
+    return v;
   }
   // snap only to the canvas centre and edges
   function snapTargets() { return { xs: [0, W / 2, W], ys: [0, H / 2, H] }; }
@@ -1725,12 +1741,27 @@
       if (pinch.snapped) dd = near - base;
       pinch.angle = pinch.init.length === 1 ? normAngle(base + dd) : normAngle(dd);
       const da = dd * Math.PI / 180, cs = Math.cos(da), sn = Math.sin(da);
-      pinch.init.forEach(s => {
+      const apply = kk => pinch.init.forEach(s => {
         const dx = s.x - pinch.cx, dy = s.y - pinch.cy;
-        s.n.x = pinch.cx + (dx * cs - dy * sn) * k; s.n.y = pinch.cy + (dx * sn + dy * cs) * k;
-        s.n.scale = Math.max(0.05, Math.min(6, s.scale * k));
+        s.n.x = pinch.cx + (dx * cs - dy * sn) * kk; s.n.y = pinch.cy + (dx * sn + dy * cs) * kk;
+        s.n.scale = Math.max(0.05, Math.min(6, s.scale * kk));
         s.n.rot = normAngle(Math.round((s.rot + dd) * 10) / 10);
       });
+      apply(k);
+      // size snapping: width → screen width, or height → screen height
+      guides = [];
+      if (snapOpt.pos && selected.type !== 'text') {
+        const bb = bboxOf(selected);
+        if (bb) {
+          const bw = bb.x1 - bb.x0, bh = bb.y1 - bb.y0;
+          const cand = [[W / bw, 'w'], [H / bh, 'h']].map(([f, ax]) => ({ f, ax, d: Math.abs(f - 1) })).sort((x, y) => x.d - y.d)[0];
+          if (cand.d < 0.035) {
+            apply(k * cand.f);
+            guides = cand.ax === 'w' ? [{ x: 0 }, { x: W }] : [{ y: 0 }, { y: H }];
+            pinch.sizeSnap = true;
+          } else pinch.sizeSnap = false;
+        }
+      }
       schedule();
     } else if (drag) {
       let dx = p.x - drag.sx, dy = p.y - drag.sy;
@@ -1749,7 +1780,7 @@
   });
   function endPointer(e) {
     pts.delete(e.pointerId);
-    if (pts.size < 2 && pinch) { pinch = null; if (selected) renderEditor(); }
+    if (pts.size < 2 && pinch) { pinch = null; guides = []; if (selected) renderEditor(); }
     if (pts.size === 1) startDrag([...pts.values()][0]);
     if (pts.size === 0) { drag = null; guides = []; interacting = false; cv.classList.remove('dragging'); schedule(); }
   }
@@ -1769,8 +1800,8 @@
         const { src, thumb } = await loadImageFile(f);
         const hasImage = leaves(tree).some(l => l.type === 'image');
         const L = Object.assign({}, IMG_DEFAULTS, { id: newId(), type: 'image', visible: true,
-          name: f.name.replace(/\.[^.]+$/, '') || '画像', src, thumb, proc: null, procKey: '', fit: hasImage ? 'free' : 'cover' });
-        if (L.fit === 'free') { const h = H * 0.78; L.x = W * 0.27; L.y = H - h / 2; }
+          name: f.name.replace(/\.[^.]+$/, '') || '画像', src, thumb, proc: null, procKey: '', fit: 'free' });
+        if (hasImage) { const h = H * 0.78; L.x = W * 0.27; L.y = H - h / 2; } else fitCover(L);
         // images go below the first text layer of the target list, so text stays readable
         const target = selected && selected.type === 'group' ? selected.children : (selected ? findCtx(selected).list : tree);
         const ti = target.findIndex(n => n.type === 'text');
@@ -1928,7 +1959,7 @@
         const blob = await getBlob(m.id); if (!blob) continue;
         try {
           const { src, thumb } = await loadImageFile(blob);
-          const n = Object.assign({}, IMG_DEFAULTS, m, { src, thumb, proc: null, procKey: '' });
+          const n = uncover(Object.assign({}, IMG_DEFAULTS, m, { src, thumb, proc: null, procKey: '' }));
           if (freshIds) { idMap[n.id] = newId(); n.id = idMap[m.id]; }
           out.push(n);
         } catch (e) {}
@@ -1998,7 +2029,8 @@
       const h = H * 0.78 * (m.scale || 1);
       n.fit = 'free'; n.x = P.x + P.w / 2 + (m.x || 0); n.y = H - h / 2 + (m.y || 0);
     }
-    return n;
+    n.src = src;
+    return uncover(n);
   }
   function migrateText(S, lines) {
     const g = k => S['n_' + k], kk = k => S['k_' + k], num = (v, d) => (v === undefined || v === '' || isNaN(+v)) ? d : +v;
