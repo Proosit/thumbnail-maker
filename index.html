@@ -30,6 +30,7 @@
   button:disabled{opacity:.35;cursor:default}
   button.danger{background:#3a1a1a;color:#ff8f8f}
   #msg{color:var(--mute);font-size:13px}
+  .hist{padding:7px 12px;font-size:13px;background:#242424}
   .tog{padding:8px 12px;font-size:12px;background:#202020;color:#888;box-shadow:inset 0 0 0 1px #3a3a3a}
   .tog::before{content:'○ '}
   .tog[aria-pressed="true"]{background:#3a1030;color:#ff8fcf;box-shadow:inset 0 0 0 1px #ff3fa4}
@@ -130,7 +131,11 @@
 <main>
   <section class="preview">
     <canvas id="cv" width="1280" height="720" aria-label="サムネイルのプレビュー"></canvas>
-    <div class="actions"><span id="msg"></span></div>
+    <div class="actions">
+      <button class="hist" id="undoBtn" aria-label="元に戻す" title="元に戻す（⌘Z / Ctrl+Z）" disabled>↶ 戻す</button>
+      <button class="hist" id="redoBtn" aria-label="やり直す" title="やり直す（⇧⌘Z / Ctrl+Y）" disabled>↷ やり直す</button>
+      <span id="msg"></span>
+    </div>
     <p class="hint">タップで選択、ドラッグで移動、2本指で拡大・回転。画面の中央・端に吸い付きます（オン・オフは「保存」タブ）。</p>
   </section>
 
@@ -1246,7 +1251,6 @@
     b('削除', btn => armed(btn, 'もう一度で削除', () => {
       const cc = findCtx(selected); if (!cc) return;
       cc.list.splice(cc.index, 1);
-      leaves([selected]).forEach(l => { if (l.type === 'image') store.del('work:img:' + l.id); });
       selected = null; renderTree(); renderEditor(); schedule();
     }), { cls: 'danger' });
   }
@@ -1987,6 +1991,7 @@
 
   let saveT = 0, lastSaved = null, restoring = true;
   function saveWorkSoon() {
+    recordSoon();
     if (restoring) return;
     clearTimeout(saveT);
     saveT = setTimeout(async () => {
@@ -2003,7 +2008,14 @@
   }
   // store images of a freshly built tree under work keys
   async function persistImages(list) { for (const l of leaves(list)) if (l.type === 'image') await store.putImage('work:img:' + l.id, l.src); }
-  async function dropWorkImages() { for (const l of leaves(tree)) if (l.type === 'image') store.del('work:img:' + l.id); }
+  // images stay stored until the next start so that undo can bring them back; unused ones are cleaned up then
+  async function dropWorkImages() {}
+  async function cleanupImages() {
+    try {
+      const used = new Set(leaves(tree).filter(l => l.type === 'image').map(l => 'work:img:' + l.id));
+      for (const k of await store.keys()) if (String(k).startsWith('work:img:') && !used.has(String(k))) await store.del(k);
+    } catch (e) {}
+  }
 
   // =====================================================================
   // migration from the previous single-text format (v1 work / v3 settings)
@@ -2379,6 +2391,81 @@
     catch (e) { flash('この環境ではコピーできませんでした。「PNGを書き出す」から保存してください'); }
   };
 
+
+  // =====================================================================
+  // undo / redo
+  // =====================================================================
+  const imgReg = {};               // id → {src, thumb}: keeps pictures of deleted layers for undo
+  const hist = { stack: [], idx: -1 };
+  const HIST_MAX = 60;
+  let histT = 0, applyingHist = false;
+  const stateJSON = () => JSON.stringify({ tree: serial(tree), root: rootFx() }, (k, v) => k === 'open' ? undefined : v);
+  function recordSoon() {
+    if (applyingHist || restoring) return;
+    clearTimeout(histT); histT = setTimeout(recordNow, 450);
+  }
+  function recordNow() {
+    histT = 0;
+    if (interacting) { histT = setTimeout(recordNow, 300); return; }   // one step per drag / pinch
+    leaves(tree).forEach(l => { if (l.type === 'image') imgReg[l.id] = { src: l.src, thumb: l.thumb }; });
+    const j = stateJSON();
+    if (hist.stack[hist.idx] === j) return;
+    hist.stack = hist.stack.slice(0, hist.idx + 1); hist.stack.push(j);
+    if (hist.stack.length > HIST_MAX) hist.stack.shift();
+    hist.idx = hist.stack.length - 1; updateHistBtns();
+  }
+  function updateHistBtns() { $('undoBtn').disabled = hist.idx <= 0; $('redoBtn').disabled = hist.idx >= hist.stack.length - 1; }
+  function goHist(d) {
+    if (histT) { clearTimeout(histT); recordNow(); }
+    const i = hist.idx + d; if (i < 0 || i >= hist.stack.length) return;
+    hist.idx = i; applyState(JSON.parse(hist.stack[i])); updateHistBtns();
+    flash(d < 0 ? '元に戻しました' : 'やり直しました');
+  }
+  function applyState(st) {
+    applyingHist = true;
+    const old = {}; walk(tree, n => { old[n.id] = n; });
+    const selId = selected && selected.id;
+    const build = list => list.map(m => {
+      const prev = old[m.id];
+      const keep = prev ? { proc: prev.proc || null, procKey: prev.procKey || '' } : {};
+      if (m.type === 'image') {
+        const r = imgReg[m.id]; if (!r) return null;
+        return Object.assign({}, IMG_DEFAULTS, m, { src: r.src, thumb: r.thumb }, keep);
+      }
+      if (m.type === 'text') {
+        const d = TEXT_STYLE_DEFAULTS();
+        const n = Object.assign(newText(), clone(m), { st: Object.assign(d.st, m.st), acc: Object.assign(d.acc, m.acc),
+          box: Object.assign(d.box, m.box), tx: Object.assign(TX_DEFAULTS(), m.tx) }, keep);
+        n.id = m.id;
+        if (prev && prev._r) { n._r = prev._r; n._key = prev._key; }   // reused only if still valid (key check)
+        return normTex(n);
+      }
+      if (m.type === 'fill') return Object.assign({}, FILL_DEFAULTS, m, keep, prev ? { _fc: prev._fc, _fck: prev._fck } : {});
+      const g = Object.assign({ id: m.id, type: 'group', name: m.name || '', visible: m.visible !== false, open: prev ? prev.open !== false : true }, fx());
+      FX_KEYS.forEach(k => { if (m[k] !== undefined) g[k] = m[k]; });
+      g.children = build(m.children || []);
+      return g;
+    }).filter(Boolean);
+    tree = build(st.tree); setRootFx(st.root);
+    selected = selId === 'root' ? ROOT : null;
+    if (selId && !selected) walk(tree, n => { if (n.id === selId) { selected = n; return false; } });
+    renderTree(); renderEditor(); render();
+    // same content, possibly different key order: store it the way it is now so it is not seen as a new change
+    hist.stack[hist.idx] = stateJSON();
+    applyingHist = false;
+    saveWorkSoon();
+  }
+  $('undoBtn').onclick = () => goHist(-1);
+  $('redoBtn').onclick = () => goHist(1);
+  document.addEventListener('keydown', e => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && t.type === 'text'));
+    if (typing) return;   // inside a text box, let the box undo its own typing
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); goHist(-1); }
+    else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); goHist(1); }
+  });
+
   // =====================================================================
   // start
   // =====================================================================
@@ -2387,6 +2474,8 @@
   restoreWork().then(() => {
     restoring = false;
     renderTree(); renderEditor(); render(); saveWorkSoon();
+    recordNow();       // the starting point of the history
+    cleanupImages();   // drop pictures of layers deleted last time
   });
   loadPresetIndex(); loadMyTpls();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fontGen++; schedule(); });
